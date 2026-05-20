@@ -390,7 +390,7 @@ app.get('/api/sessions/:id/export', async (req, res) => {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet(monthName);
   sheet.views = [{ state: 'frozen', ySplit: 1 }];
-  sheet.addRow(['Tag #', 'Category Name', 'Item Number', 'Description', 'Balance']);
+  sheet.addRow(['Tag Count', 'Category Name', 'Item Number', 'Description', 'Balance']);
   sheet.getRow(1).eachCell((cell) => {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F766E' } };
     cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
@@ -412,27 +412,11 @@ app.get('/api/sessions/:id/export', async (req, res) => {
     tags: item.tags.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
     balance: item.tags.length
   }));
-  let grandTotal = 0;
-  for (const category of rows('SELECT name FROM categories ORDER BY name').map((item) => item.name)) {
-    const group = groupedItems.filter((item) => item.category === category);
-    if (!group.length) continue;
-    let subtotal = 0;
-    for (const item of group) {
+  groupedItems
+    .sort((a, b) => a.category.localeCompare(b.category) || a.item_number.localeCompare(b.item_number, undefined, { numeric: true }))
+    .forEach((item) => {
       sheet.addRow([item.tags.join(', '), item.category, item.item_number, item.description, item.balance]);
-      subtotal += item.balance;
-      grandTotal += item.balance;
-    }
-    const rowRef = sheet.addRow(['', `${category} subtotal`, '', '', subtotal]);
-    rowRef.eachCell((cell) => {
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } };
-      cell.font = { italic: true, bold: cell.col === 5 };
     });
-  }
-  const totalRow = sheet.addRow(['', 'Grand total', '', '', grandTotal]);
-  totalRow.eachCell((cell) => {
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF9CA3AF' } };
-    cell.font = { bold: true };
-  });
   sheet.columns.forEach((column) => {
     let max = 12;
     column.eachCell({ includeEmpty: true }, (cell) => {
