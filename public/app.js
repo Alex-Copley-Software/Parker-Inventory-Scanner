@@ -351,6 +351,7 @@ function bindUi() {
   $('#filterCategory').addEventListener('change', () => safeAsync(loadItems));
   $('#labelCategory').addEventListener('change', () => safeAsync(renderLabels));
   $('#printLabels').addEventListener('click', () => window.print());
+  $('#printLabelsBottom').addEventListener('click', () => window.print());
   $('#importForm').addEventListener('submit', async (event) => {
     event.preventDefault();
     const form = new FormData();

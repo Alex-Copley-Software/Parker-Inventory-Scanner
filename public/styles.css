@@ -403,6 +403,16 @@ td.actions {
   background: white;
 }
 
+.label-print-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 18px;
+}
+
+.label-print-actions button {
+  min-width: 220px;
+}
+
 .label {
   width: 2.625in;
   height: 1in;
