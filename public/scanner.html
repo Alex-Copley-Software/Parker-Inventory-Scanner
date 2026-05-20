@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Parker Scanner</title>
   <link rel="stylesheet" href="/styles.css">
-  <script src="/vendor/html5-qrcode/html5-qrcode.min.js" defer></script>
 </head>
 <body class="scanner-body">
   <main class="scanner-shell">
@@ -24,6 +23,10 @@
         <button id="startCamera">Start camera</button>
         <button id="stopCamera" class="secondary">Stop</button>
       </div>
+      <form id="manualScanForm" class="manual-scan">
+        <label>Manual tag entry<input id="manualTag" inputmode="text" autocomplete="off" placeholder="W-001"></label>
+        <button type="submit">Log tag</button>
+      </form>
     </section>
 
     <section class="panel">
@@ -32,6 +35,7 @@
     </section>
   </main>
 
+  <script src="/vendor/html5-qrcode/html5-qrcode.min.js"></script>
   <script src="/config.js"></script>
   <script src="/scanner.js"></script>
 </body>

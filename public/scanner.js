@@ -52,7 +52,13 @@ function addHistory(tag, message) {
 }
 
 async function loadSession() {
-  activeSession = await api('/api/sessions/active');
+  try {
+    activeSession = await api('/api/sessions/active');
+  } catch (error) {
+    setResult(`Backend connection failed: ${error.message}`, 'bad');
+    $('#sessionLine').textContent = 'Cannot reach backend.';
+    return;
+  }
   if (!activeSession) {
     $('#sessionLine').textContent = 'No active session. Start one on the PC.';
     return;
@@ -129,6 +135,13 @@ async function init() {
   await flushPending();
   $('#startCamera').addEventListener('click', () => startCamera().catch((error) => setResult(error.message, 'bad')));
   $('#stopCamera').addEventListener('click', () => stopCamera().catch(() => {}));
+  $('#manualScanForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const tag = $('#manualTag').value.trim().toUpperCase();
+    if (!tag) return;
+    $('#manualTag').value = '';
+    await handleScan(tag);
+  });
   window.addEventListener('online', updateOnlineStatus);
   window.addEventListener('offline', updateOnlineStatus);
   setInterval(() => flushPending().catch(() => {}), 5000);

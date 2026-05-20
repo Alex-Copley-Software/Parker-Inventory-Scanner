@@ -40,6 +40,19 @@ button {
   cursor: pointer;
 }
 
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid var(--teal);
+  border-radius: 6px;
+  background: var(--teal);
+  color: white;
+  text-decoration: none;
+}
+
 button.secondary {
   background: white;
   color: var(--teal-dark);
@@ -308,6 +321,14 @@ td.actions {
 .result.bad {
   background: #fee4e2;
   color: var(--red);
+}
+
+.manual-scan {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+  margin-top: 12px;
 }
 
 .label-sheet {

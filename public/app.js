@@ -29,6 +29,11 @@ function scannerUrl() {
   return url.toString();
 }
 
+function updateScannerLink() {
+  const link = $('#openScanner');
+  if (link) link.href = scannerUrl();
+}
+
 async function api(path, options = {}) {
   const response = await fetch(apiUrl(path), {
     headers: options.body instanceof FormData ? undefined : { 'Content-Type': 'application/json' },
@@ -182,6 +187,7 @@ async function loadSession() {
   $('#exportButton').disabled = !state.activeSession;
   const connectionQr = apiUrl(`/api/connection-qr?target=${encodeURIComponent(scannerUrl())}`);
   $('#connectionQr').innerHTML = state.activeSession ? `<img src="${connectionQr}" alt="Scanner connection QR">` : 'Start a count session to show phone connection QR.';
+  updateScannerLink();
   if (state.activeSession) await loadScans();
 }
 
@@ -287,6 +293,7 @@ async function init() {
   $('#category').addEventListener('change', suggestTag);
   $('#saveApiBase').addEventListener('click', async () => {
     localStorage.setItem('parker-api-base', $('#apiBaseUrl').value.trim().replace(/\/$/, ''));
+    updateScannerLink();
     toast('Backend URL saved.');
     await loadCategories();
     await loadItems();
@@ -333,6 +340,7 @@ async function init() {
     await loadItems();
   });
   $('#startSession').addEventListener('click', startSession);
+  updateScannerLink();
   $('#pauseSession').addEventListener('click', () => setSessionStatus('paused'));
   $('#resumeSession').addEventListener('click', () => setSessionStatus('active'));
   $('#completeSession').addEventListener('click', () => setSessionStatus('complete'));
