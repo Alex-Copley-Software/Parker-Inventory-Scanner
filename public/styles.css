@@ -386,6 +386,46 @@ td.actions {
   margin-top: 12px;
 }
 
+.scanner-add-toggle {
+  margin-top: 10px;
+  width: 100%;
+}
+
+.scanner-new-item {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.scanner-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.scanner-form-grid label:first-child,
+.scanner-form-grid label:last-child {
+  grid-column: 1 / -1;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.check-row input {
+  width: 18px;
+  min-height: 18px;
+}
+
+.scanner-new-actions {
+  margin-top: 0;
+}
+
 .scanner-body .history {
   max-height: calc(28vh - 50px);
 }
@@ -513,9 +553,14 @@ td.actions {
   }
 
   .scanner-camera-panel .form-actions,
-  .manual-scan {
+  .manual-scan,
+  .scanner-form-grid {
     grid-template-columns: 1fr;
     gap: 8px;
+  }
+
+  .scanner-new-item textarea {
+    min-height: 68px;
   }
 
   .scanner-camera-panel .form-actions button,

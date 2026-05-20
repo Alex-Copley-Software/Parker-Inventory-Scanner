@@ -2,6 +2,7 @@ let activeSession = null;
 let scanner = null;
 let lastScan = { tag: '', at: 0 };
 const pendingKey = 'parker-pending-scans';
+let categories = [];
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -49,6 +50,42 @@ function addHistory(tag, message) {
   row.className = 'feed-item';
   row.innerHTML = `<strong>${tag}</strong><span>${message}</span>`;
   $('#history').prepend(row);
+}
+
+function labelHtml(item) {
+  return `
+    <div class="label">
+      <img src="${apiUrl(`/api/qr/${encodeURIComponent(item.tag_number)}`)}" alt="">
+      <div>
+        <strong>${item.tag_number}</strong>
+        <span>${item.item_number || ''}</span>
+        <span>${item.description || ''}</span>
+      </div>
+    </div>
+  `;
+}
+
+function cleanupSinglePrint() {
+  document.body.classList.remove('printing-single');
+  $('#singlePrintSheet').innerHTML = '';
+}
+
+function printItemLabel(item) {
+  const blanks = Array.from({ length: 29 }, () => '<div class="label"></div>').join('');
+  $('#singlePrintSheet').innerHTML = `${labelHtml(item)}${blanks}`;
+  document.body.classList.add('printing-single');
+  setTimeout(() => window.print(), 150);
+}
+
+async function loadCategories() {
+  categories = await api('/api/categories');
+  const select = $('#newItemCategory');
+  select.innerHTML = categories.map((category) => `<option value="${category.id}">${category.name}</option>`).join('');
+}
+
+async function loadNextItemTag() {
+  const next = await api('/api/items/next-tag');
+  $('#newItemTag').value = next.tag_number;
 }
 
 async function loadSession() {
@@ -133,6 +170,8 @@ function updateOnlineStatus() {
 
 async function init() {
   await loadSession();
+  await loadCategories();
+  await loadNextItemTag();
   updateOnlineStatus();
   await flushPending();
   $('#startCamera').addEventListener('click', () => startCamera().catch((error) => setResult(error.message, 'bad')));
@@ -153,6 +192,30 @@ async function init() {
     $('#manualTag').value = '';
     await handleScan(tag);
   });
+  $('#toggleNewItem').addEventListener('click', async () => {
+    $('#newItemForm').classList.toggle('hidden');
+    if (!$('#newItemForm').classList.contains('hidden') && !$('#newItemTag').value) await loadNextItemTag();
+  });
+  $('#refreshNewTag').addEventListener('click', () => loadNextItemTag().catch((error) => setResult(error.message, 'bad')));
+  $('#newItemForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const item = await api('/api/items', {
+      method: 'POST',
+      body: {
+        tag_number: $('#newItemTag').value.trim().toUpperCase(),
+        category_id: $('#newItemCategory').value,
+        item_number: $('#newItemNumber').value.trim(),
+        description: $('#newItemDescription').value.trim()
+      }
+    });
+    setResult(`${item.tag_number} added to the registry.`, '');
+    addHistory(item.tag_number, 'New item added');
+    if ($('#printNewItem').checked) printItemLabel(item);
+    $('#newItemNumber').value = '';
+    $('#newItemDescription').value = '';
+    await loadNextItemTag();
+  });
+  window.addEventListener('afterprint', cleanupSinglePrint);
   window.addEventListener('online', updateOnlineStatus);
   window.addEventListener('offline', updateOnlineStatus);
   setInterval(() => flushPending().catch(() => {}), 5000);
