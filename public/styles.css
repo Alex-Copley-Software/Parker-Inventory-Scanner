@@ -289,24 +289,69 @@ td.actions {
 .scanner-body {
   background: #0f1f1c;
   color: white;
+  min-height: 100vh;
 }
 
 .scanner-shell {
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 16px;
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 12px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
 }
 
 .scanner-shell .panel {
   color: var(--ink);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.scanner-shell .topbar {
+  margin: 0;
+  padding: 4px 2px;
+}
+
+.scanner-shell .brand h1 {
+  color: white;
+  font-size: 22px;
+}
+
+.scanner-shell .brand p {
+  color: #c9d8d4;
+}
+
+.scanner-camera-panel {
+  display: grid;
+  grid-template-rows: minmax(420px, 1fr) auto auto auto;
+  min-height: 0;
+}
+
+.scanner-history-panel {
+  max-height: 28vh;
+  overflow: hidden;
+}
+
+.scanner-history-panel h2 {
+  font-size: 18px;
+  margin-bottom: 8px;
 }
 
 #reader {
   width: 100%;
-  min-height: 300px;
+  min-height: 420px;
+  height: 100%;
   overflow: hidden;
   border-radius: 8px;
   background: #091310;
+}
+
+#reader video,
+#reader canvas {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
 }
 
 .result {
@@ -334,6 +379,10 @@ td.actions {
   gap: 8px;
   align-items: end;
   margin-top: 12px;
+}
+
+.scanner-body .history {
+  max-height: calc(28vh - 50px);
 }
 
 .label-sheet {
@@ -408,6 +457,59 @@ td.actions {
 
   .grid {
     grid-template-columns: 1fr;
+  }
+
+  .scanner-shell {
+    padding: 8px;
+    gap: 8px;
+    grid-template-rows: auto minmax(0, 1fr) minmax(120px, 24vh);
+  }
+
+  .scanner-shell .topbar {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .scanner-shell .brand h1 {
+    font-size: 20px;
+  }
+
+  .scanner-shell .brand p {
+    font-size: 13px;
+  }
+
+  .scanner-camera-panel {
+    grid-template-rows: minmax(52vh, 1fr) auto auto auto;
+    padding: 8px;
+  }
+
+  #reader {
+    min-height: 52vh;
+  }
+
+  .scanner-camera-panel .form-actions,
+  .manual-scan {
+    grid-template-columns: 1fr;
+  }
+
+  .scanner-camera-panel .form-actions button,
+  .manual-scan button {
+    width: 100%;
+  }
+
+  .result {
+    min-height: 58px;
+    margin: 8px 0;
+    padding: 10px;
+  }
+
+  .scanner-history-panel {
+    max-height: 24vh;
+    padding: 10px;
+  }
+
+  .scanner-body .history {
+    max-height: calc(24vh - 42px);
   }
 }
 
