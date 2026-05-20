@@ -340,27 +340,33 @@ td.actions {
   display: grid;
   grid-template-columns: repeat(3, 2.625in);
   grid-auto-rows: 1in;
-  gap: 0;
+  column-gap: 0.118in;
+  row-gap: 0;
   justify-content: start;
+  width: 8.124in;
+  min-height: 10in;
+  padding: 0;
   background: white;
 }
 
 .label {
   width: 2.625in;
   height: 1in;
-  padding: 0.08in;
+  padding: 0.055in 0.075in;
   display: grid;
-  grid-template-columns: 0.72in 1fr;
-  gap: 0.06in;
+  grid-template-columns: 0.76in minmax(0, 1fr);
+  gap: 0.075in;
   align-items: center;
   overflow: hidden;
-  border: 1px dotted #c7cfcc;
+  border: 0;
   color: black;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 
 .label img {
-  width: 0.7in;
-  height: 0.7in;
+  width: 0.74in;
+  height: 0.74in;
 }
 
 .label strong,
@@ -372,11 +378,11 @@ td.actions {
 }
 
 .label strong {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .label span {
-  font-size: 8px;
+  font-size: 7.5px;
 }
 
 @media (max-width: 980px) {
@@ -406,8 +412,17 @@ td.actions {
 }
 
 @media print {
+  @page {
+    size: 8.5in 11in;
+    margin: 0.5in 0.137in;
+  }
+
+  html,
   body {
     background: white;
+    width: 8.5in;
+    min-height: 11in;
+    margin: 0;
   }
 
   .no-print,
@@ -421,6 +436,7 @@ td.actions {
     padding: 0;
     margin: 0;
     max-width: none;
+    width: auto;
   }
 
   .layout {
@@ -430,9 +446,17 @@ td.actions {
   .print-panel {
     border: 0;
     padding: 0;
+    margin: 0;
+    width: 8.124in;
   }
 
-  .label {
-    break-inside: avoid;
+  .label-sheet {
+    grid-template-columns: repeat(3, 2.625in);
+    grid-template-rows: repeat(10, 1in);
+    grid-auto-rows: 1in;
+    column-gap: 0.118in;
+    row-gap: 0;
+    width: 8.124in;
+    min-height: 10in;
   }
 }
