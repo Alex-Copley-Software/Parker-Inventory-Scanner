@@ -4,6 +4,7 @@ const state = {
   labelItems: [],
   editingId: null,
   activeSession: null,
+  reviewSession: null,
   scans: []
 };
 
@@ -204,27 +205,34 @@ async function loadSession() {
     $('#connectionQr').textContent = error.message;
     throw error;
   }
+  if (state.activeSession) state.reviewSession = state.activeSession;
+  if (!state.activeSession && !state.reviewSession) {
+    state.reviewSession = await api('/api/sessions/latest');
+  }
   $('#sessionStatus').textContent = state.activeSession ? `${monthName(state.activeSession)} is ${state.activeSession.status}` : 'No active session';
   $('#sessionStatus').className = `status ${state.activeSession ? '' : 'warn'}`;
   $('#completeSession').disabled = !state.activeSession;
   $('#pauseSession').disabled = !state.activeSession;
   $('#resumeSession').disabled = !state.activeSession;
-  $('#exportButton').disabled = !state.activeSession;
+  $('#exportButton').disabled = !(state.reviewSession || state.activeSession);
   const connectionQr = apiUrl(`/api/connection-qr?target=${encodeURIComponent(scannerUrl())}`);
   $('#connectionQr').innerHTML = state.activeSession ? `<img src="${connectionQr}" alt="Scanner connection QR">` : 'Start a count session to show phone connection QR.';
   updateScannerLink();
   if (state.activeSession) {
     await loadScans();
+  } else if (state.reviewSession) {
+    await loadScans(state.reviewSession);
   } else {
     $('#scanSummary').textContent = 'Start a count session before scanning.';
     $('#scanFeed').innerHTML = '<p>No scans yet.</p>';
   }
 }
 
-async function loadScans() {
-  if (!state.activeSession) return;
-  state.scans = await api(`/api/sessions/${state.activeSession.id}/scans`);
-  $('#scanSummary').textContent = `${state.scans.length} item${state.scans.length === 1 ? '' : 's'} scanned in this session.`;
+async function loadScans(session = state.activeSession) {
+  if (!session) return;
+  state.scans = await api(`/api/sessions/${session.id}/scans`);
+  const summarySuffix = session.status === 'complete' ? 'scanned in the latest completed session.' : 'scanned in this session.';
+  $('#scanSummary').textContent = `${state.scans.length} item${state.scans.length === 1 ? '' : 's'} ${summarySuffix}`;
   $('#scanFeed').innerHTML = state.scans.map((scan) => `
     <div class="feed-item">
       <strong>${scan.tag_number} - ${scan.description || 'Unknown item'}</strong>
@@ -239,13 +247,16 @@ async function startSession() {
     method: 'POST',
     body: { month: date.getMonth() + 1, year: date.getFullYear() }
   });
+  state.reviewSession = state.activeSession;
   await loadSession();
   showTab('sessions');
 }
 
 async function setSessionStatus(status) {
   if (!state.activeSession) return;
-  state.activeSession = await api(`/api/sessions/${state.activeSession.id}`, { method: 'PATCH', body: { status } });
+  const updatedSession = await api(`/api/sessions/${state.activeSession.id}`, { method: 'PATCH', body: { status } });
+  state.activeSession = updatedSession;
+  state.reviewSession = updatedSession;
   await loadSession();
   if (status === 'complete') {
     await loadReview();
@@ -254,9 +265,23 @@ async function setSessionStatus(status) {
   }
 }
 
+async function reviewableSession() {
+  if (state.reviewSession) return state.reviewSession;
+  if (state.activeSession) return state.activeSession;
+  state.reviewSession = await api('/api/sessions/latest');
+  $('#exportButton').disabled = !state.reviewSession;
+  return state.reviewSession;
+}
+
 async function loadReview() {
-  if (!state.activeSession) return;
-  const review = await api(`/api/sessions/${state.activeSession.id}/review`);
+  const session = await reviewableSession();
+  if (!session) {
+    $('#scannedList').innerHTML = '<p>No count session found.</p>';
+    $('#notScannedList').innerHTML = '<p>No count session found.</p>';
+    $('#overrideList').innerHTML = '<p>No manual overrides.</p>';
+    return;
+  }
+  const review = await api(`/api/sessions/${session.id}/review`);
   $('#scannedList').innerHTML = review.scanned.map(reviewCard).join('') || '<p>No scanned items.</p>';
   $('#notScannedList').innerHTML = review.notScanned.map((item) => reviewCard(item, true)).join('') || '<p>Everything was scanned.</p>';
   $('#overrideList').innerHTML = review.overrides.map((item) => `
@@ -283,7 +308,9 @@ function reviewCard(item, missing = false) {
 }
 
 window.saveOverride = async (itemId) => {
-  await api(`/api/sessions/${state.activeSession.id}/overrides`, {
+  const session = await reviewableSession();
+  if (!session) return toast('No count session found.', 'bad');
+  await api(`/api/sessions/${session.id}/overrides`, {
     method: 'POST',
     body: {
       item_id: itemId,
@@ -298,6 +325,8 @@ function showTab(id) {
   $$('.tab-page').forEach((page) => page.classList.toggle('hidden', page.id !== id));
   $$('.tabs button').forEach((button) => button.classList.toggle('active', button.dataset.tab === id));
   if (id === 'labels') safeAsync(renderLabels);
+  if (id === 'review') safeAsync(loadReview);
+  if (id === 'sessions') safeAsync(loadSession);
 }
 
 function connectSocket() {
@@ -382,7 +411,8 @@ function bindUi() {
   $('#completeSession').addEventListener('click', () => safeAsync(() => setSessionStatus('complete')));
   $('#refreshReview').addEventListener('click', () => safeAsync(loadReview));
   $('#exportButton').addEventListener('click', () => {
-    if (state.activeSession) location.href = apiUrl(`/api/sessions/${state.activeSession.id}/export`);
+    const session = state.reviewSession || state.activeSession;
+    if (session) location.href = apiUrl(`/api/sessions/${session.id}/export`);
   });
 }
 

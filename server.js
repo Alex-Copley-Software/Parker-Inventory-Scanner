@@ -319,6 +319,10 @@ app.get('/api/sessions/active', (req, res) => {
   res.json(row("SELECT * FROM count_sessions WHERE status IN ('active', 'paused') ORDER BY id DESC LIMIT 1") || null);
 });
 
+app.get('/api/sessions/latest', (req, res) => {
+  res.json(row('SELECT * FROM count_sessions ORDER BY id DESC LIMIT 1') || null);
+});
+
 app.get('/api/sessions/:id', (req, res) => {
   res.json(row('SELECT * FROM count_sessions WHERE id = ?', [Number(req.params.id)]));
 });
