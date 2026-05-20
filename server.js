@@ -286,11 +286,20 @@ app.get('/api/sessions/:id', (req, res) => {
 app.patch('/api/sessions/:id', (req, res) => {
   const status = req.body.status;
   if (!['active', 'paused', 'complete'].includes(status)) return res.status(400).json({ error: 'Invalid status.' });
-  db.prepare('UPDATE count_sessions SET status = ?, completed_at = CASE WHEN ? = "complete" THEN CURRENT_TIMESTAMP ELSE completed_at END WHERE id = ?')
-    .run(status, status, Number(req.params.id));
-  const session = row('SELECT * FROM count_sessions WHERE id = ?', [Number(req.params.id)]);
-  broadcast('sessions:changed', session);
-  res.json(session);
+  try {
+    db.prepare(`
+      UPDATE count_sessions
+      SET status = ?,
+          completed_at = CASE WHEN ? = 'complete' THEN CURRENT_TIMESTAMP ELSE completed_at END
+      WHERE id = ?
+    `).run(status, status, Number(req.params.id));
+    const session = row('SELECT * FROM count_sessions WHERE id = ?', [Number(req.params.id)]);
+    if (!session) return res.status(404).json({ error: 'Session not found.' });
+    broadcast('sessions:changed', session);
+    res.json(session);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 function recordScan(sessionId, tagNumber) {

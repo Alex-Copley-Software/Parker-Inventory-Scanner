@@ -239,6 +239,7 @@ async function setSessionStatus(status) {
   if (status === 'complete') {
     await loadReview();
     showTab('review');
+    toast('Session complete. Use Download Excel to open the count file.');
   }
 }
 
