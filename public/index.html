@@ -56,8 +56,8 @@
               <button id="addCategory" class="secondary" type="button">Add</button>
             </div>
             <label>Tag #<input id="tag_number" required></label>
-            <label>Item Number<input id="item_number" required></label>
-            <label>Description<textarea id="description" rows="3" required></textarea></label>
+            <label>Item Number<input id="item_number"></label>
+            <label>Description<textarea id="description" rows="3"></textarea></label>
             <div class="form-actions">
               <button id="saveItem" type="submit">Save & generate QR</button>
               <button id="cancelEdit" class="secondary" type="button">Cancel</button>
@@ -67,7 +67,7 @@
           <h3>Bulk CSV Import</h3>
           <form id="importForm">
             <input id="csvFile" type="file" accept=".csv" required>
-            <p>Columns: Tag #, Category Name, Item Number, Description</p>
+            <p>Columns: Tag Count, Category Name, Item Number, Description, Balance</p>
             <button type="submit">Import CSV</button>
           </form>
         </aside>

@@ -373,7 +373,7 @@ function bindUi() {
     const form = new FormData();
     form.append('file', $('#csvFile').files[0]);
     const result = await api('/api/items/import', { method: 'POST', body: form });
-    toast(`Imported ${result.imported} items.`);
+    toast(`Imported ${result.imported} items${result.skipped ? `, skipped ${result.skipped}` : ''}.`);
     await loadItems();
   });
   $('#startSession').addEventListener('click', () => safeAsync(startSession));

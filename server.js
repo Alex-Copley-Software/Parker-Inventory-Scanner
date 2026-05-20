@@ -128,6 +128,41 @@ function parseCsv(text) {
   });
 }
 
+function normalizeHeader(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[#]/g, ' number')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function csvValue(record, headerIndex, aliases, fallbackIndex) {
+  for (const alias of aliases) {
+    const index = headerIndex.get(alias);
+    if (index !== undefined) return String(record[index] || '').trim();
+  }
+  return String(record[fallbackIndex] || '').trim();
+}
+
+function inventoryImportRows(records) {
+  if (!records.length) return [];
+  const headers = records[0].map(normalizeHeader);
+  const headerIndex = new Map(headers.map((header, index) => [header, index]));
+  const hasRecognizedHeaders = ['tag count', 'tag number', 'tag', 'category name', 'item number', 'description']
+    .some((header) => headerIndex.has(header));
+  const dataRows = hasRecognizedHeaders ? records.slice(1) : records;
+
+  return dataRows.flatMap((record) => {
+    const tagCell = csvValue(record, headerIndex, ['tag count', 'tag number', 'tag'], 0);
+    const category = csvValue(record, headerIndex, ['category name', 'category'], 1);
+    const itemNumber = csvValue(record, headerIndex, ['item number', 'item'], 2);
+    const description = csvValue(record, headerIndex, ['description', 'desc'], 3);
+    const tags = tagCell.split(',').map((tag) => tag.trim()).filter(Boolean);
+    return tags.map((tag) => ({ tag, category, itemNumber, description }));
+  });
+}
+
 app.get('/api/categories', (req, res) => {
   res.json(rows('SELECT id, name, prefix FROM categories ORDER BY id'));
 });
@@ -181,14 +216,14 @@ app.get('/api/items/next-tag', (req, res) => {
 
 app.post('/api/items', (req, res) => {
   const { tag_number, category_id, item_number, description } = req.body;
-  if (!tag_number || !category_id || !item_number || !description) {
-    return res.status(400).json({ error: 'Tag #, category, item number, and description are required.' });
+  if (!tag_number || !category_id) {
+    return res.status(400).json({ error: 'Tag # and category are required.' });
   }
   try {
     const info = db.prepare(`
       INSERT INTO items (tag_number, category_id, item_number, description, balance)
       VALUES (?, ?, ?, ?, ?)
-    `).run(tag_number.trim(), Number(category_id), item_number.trim(), description.trim(), 1);
+    `).run(tag_number.trim(), Number(category_id), String(item_number || '').trim(), String(description || '').trim(), 1);
     res.status(201).json(row(itemSelect('WHERE i.id = ?'), [info.lastInsertRowid]));
     broadcast('items:changed', {});
   } catch (error) {
@@ -202,7 +237,7 @@ app.put('/api/items/:id', (req, res) => {
     UPDATE items
     SET tag_number = ?, category_id = ?, item_number = ?, description = ?, balance = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
-  `).run(tag_number.trim(), Number(category_id), item_number.trim(), description.trim(), 1, Number(req.params.id));
+  `).run(tag_number.trim(), Number(category_id), String(item_number || '').trim(), String(description || '').trim(), 1, Number(req.params.id));
   broadcast('items:changed', {});
   res.json(row(itemSelect('WHERE i.id = ?'), [Number(req.params.id)]));
 });
@@ -237,18 +272,21 @@ app.post('/api/items/import', upload.single('file'), (req, res) => {
       updated_at = CURRENT_TIMESTAMP
   `);
   let imported = 0;
+  let skipped = 0;
   const transaction = db.transaction((records) => {
-    for (const [tag, category, itemNumber, description] of records) {
-      const categoryId = ensureCategory(category);
-      if (tag && categoryId && itemNumber && description) {
-        insert.run(tag, categoryId, itemNumber, description, 1);
-        imported += 1;
+    for (const item of inventoryImportRows(records)) {
+      const categoryId = ensureCategory(item.category);
+      if (!item.tag || !categoryId) {
+        skipped += 1;
+        continue;
       }
+      insert.run(item.tag, categoryId, item.itemNumber, item.description, 1);
+      imported += 1;
     }
   });
   transaction(parseCsv(req.file.buffer.toString('utf8')));
   broadcast('items:changed', {});
-  res.json({ imported });
+  res.json({ imported, skipped });
 });
 
 app.get('/api/qr/:tag', async (req, res) => {
