@@ -1,6 +1,7 @@
 const state = {
   categories: [],
   items: [],
+  labelItems: [],
   editingId: null,
   activeSession: null,
   scans: []
@@ -92,7 +93,6 @@ async function loadItems() {
   if ($('#filterCategory').value) params.set('category', $('#filterCategory').value);
   state.items = await api(`/api/items?${params.toString()}`);
   renderItems();
-  renderLabels();
 }
 
 function renderItems() {
@@ -150,7 +150,8 @@ window.retireItem = async (id) => {
 window.printOne = async (tag) => {
   const labelCategory = $('#labelCategory');
   if (labelCategory) labelCategory.value = '';
-  const item = state.items.find((candidate) => candidate.tag_number === tag);
+  const item = state.items.find((candidate) => candidate.tag_number === tag)
+    || state.labelItems.find((candidate) => candidate.tag_number === tag);
   const labels = $('#labels');
   if (!item || !labels) return toast('QR label area is not available yet. Refresh and try again.', 'bad');
   labels.innerHTML = labelHtml([item]);
@@ -171,13 +172,14 @@ function labelHtml(items) {
   `).join('');
 }
 
-function renderLabels() {
+async function renderLabels() {
   const labelCategory = $('#labelCategory');
   const labels = $('#labels');
   if (!labelCategory || !labels) return;
-  const category = labelCategory.value;
-  const items = category ? state.items.filter((item) => item.category === category) : state.items;
-  labels.innerHTML = labelHtml(items);
+  const params = new URLSearchParams();
+  if (labelCategory.value) params.set('category', labelCategory.value);
+  state.labelItems = await api(`/api/labels?${params.toString()}`);
+  labels.innerHTML = labelHtml(state.labelItems);
 }
 
 async function loadSession() {
@@ -282,6 +284,7 @@ window.saveOverride = async (itemId) => {
 function showTab(id) {
   $$('.tab-page').forEach((page) => page.classList.toggle('hidden', page.id !== id));
   $$('.tabs button').forEach((button) => button.classList.toggle('active', button.dataset.tab === id));
+  if (id === 'labels') safeAsync(renderLabels);
 }
 
 function connectSocket() {
@@ -346,7 +349,7 @@ function bindUi() {
   $('#cancelEdit').addEventListener('click', resetForm);
   $('#search').addEventListener('input', () => safeAsync(loadItems));
   $('#filterCategory').addEventListener('change', () => safeAsync(loadItems));
-  $('#labelCategory').addEventListener('change', renderLabels);
+  $('#labelCategory').addEventListener('change', () => safeAsync(renderLabels));
   $('#printLabels').addEventListener('click', () => window.print());
   $('#importForm').addEventListener('submit', async (event) => {
     event.preventDefault();
