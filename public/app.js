@@ -148,6 +148,14 @@ window.retireItem = async (id) => {
   await loadItems();
 };
 
+async function retireAllItems() {
+  if (!confirm('Retire every current item from future counts? Import your fresh CSV after this.')) return;
+  const result = await api('/api/items/retire-all', { method: 'POST' });
+  toast(`Retired ${result.retired} item${result.retired === 1 ? '' : 's'}.`);
+  await loadItems();
+  await renderLabels();
+}
+
 window.printOne = async (tag) => {
   const allItems = await api('/api/labels');
   const item = allItems.find((candidate) => candidate.tag_number === tag);
@@ -290,10 +298,13 @@ async function loadReview() {
 }
 
 function reviewCard(item, missing = false) {
+  const expected = item.expected_count ?? item.balance ?? 1;
+  const actual = item.actual_count ?? (missing ? 0 : 1);
   return `
     <div class="review-card ${missing ? 'missing' : ''}">
-      <strong>${item.tag_number} - ${item.description}</strong>
+      <strong>${item.tag_number} - ${item.description || 'No description'}</strong>
       <div>${item.category} | ${item.item_number}</div>
+      <div>Actual Count: ${actual} / Balance: ${expected}</div>
       ${missing ? `
         <select id="override-status-${item.id}">
           <option value="missing">Confirmed missing</option>
@@ -405,6 +416,7 @@ function bindUi() {
     toast(`Imported ${result.imported} items${result.skipped ? `, skipped ${result.skipped}` : ''}.`);
     await loadItems();
   });
+  $('#retireAllItems').addEventListener('click', () => safeAsync(retireAllItems));
   $('#startSession').addEventListener('click', () => safeAsync(startSession));
   $('#pauseSession').addEventListener('click', () => safeAsync(() => setSessionStatus('paused')));
   $('#resumeSession').addEventListener('click', () => safeAsync(() => setSessionStatus('active')));

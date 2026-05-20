@@ -282,6 +282,11 @@ td.actions {
   border-color: #f3b5af;
 }
 
+.retire-all-button {
+  width: 100%;
+  margin-top: 14px;
+}
+
 .hidden {
   display: none !important;
 }

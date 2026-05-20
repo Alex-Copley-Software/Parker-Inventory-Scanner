@@ -70,6 +70,8 @@
             <p>Columns: Tag Count, Category Name, Item Number, Description, Balance</p>
             <button type="submit">Import CSV</button>
           </form>
+          <button id="retireAllItems" class="danger retire-all-button" type="button">Retire All Items</button>
+          <p class="helper-text">Use Retire All before importing a fresh inventory CSV when you want the upload to become the current expected inventory.</p>
         </aside>
       </div>
     </section>
@@ -111,11 +113,11 @@
         </div>
         <div class="review-grid">
           <section>
-            <h3>Scanned</h3>
+            <h3>Scanned / Actual Count</h3>
             <div id="scannedList" class="review-list"></div>
           </section>
           <section>
-            <h3>Not scanned</h3>
+            <h3>Missing</h3>
             <div id="notScannedList" class="review-list"></div>
           </section>
           <section>

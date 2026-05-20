@@ -248,6 +248,16 @@ app.delete('/api/items/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+app.post('/api/items/retire-all', (req, res) => {
+  const info = db.prepare(`
+    UPDATE items
+    SET retired_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+    WHERE retired_at IS NULL
+  `).run();
+  broadcast('items:changed', {});
+  res.json({ retired: info.changes });
+});
+
 app.post('/api/items/import', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'CSV file is required.' });
   const categoryMap = new Map(rows('SELECT id, name FROM categories').map((c) => [c.name.toLowerCase(), c.id]));
@@ -394,10 +404,19 @@ app.get('/api/sessions/:id/scans', (req, res) => {
 
 app.get('/api/sessions/:id/review', (req, res) => {
   const sessionId = Number(req.params.id);
-  const scanned = rows(`${itemSelect('WHERE i.retired_at IS NULL AND EXISTS (SELECT 1 FROM scan_events s WHERE s.item_id = i.id AND s.session_id = ?)')}`, [sessionId]);
-  const notScanned = rows(`
-    ${itemSelect('WHERE i.retired_at IS NULL AND NOT EXISTS (SELECT 1 FROM scan_events s WHERE s.item_id = i.id AND s.session_id = ?)')}
-  `, [sessionId]);
+  const scanExistsSql = 'EXISTS (SELECT 1 FROM scan_events s WHERE s.item_id = i.id AND s.session_id = ?)';
+  const reviewSelect = (condition) => `
+    SELECT i.id, i.tag_number, c.name AS category, c.prefix, i.item_number,
+           i.description, i.balance, i.retired_at, i.created_at, i.updated_at,
+           1 AS expected_count,
+           CASE WHEN ${scanExistsSql} THEN 1 ELSE 0 END AS actual_count
+    FROM items i
+    JOIN categories c ON c.id = i.category_id
+    WHERE i.retired_at IS NULL AND ${condition}
+    ORDER BY c.name, i.tag_number
+  `;
+  const scanned = rows(reviewSelect(scanExistsSql), [sessionId, sessionId]);
+  const notScanned = rows(reviewSelect(`NOT ${scanExistsSql}`), [sessionId, sessionId]);
   const overrides = rows(`
     SELECT o.*, i.tag_number, i.item_number, i.description, i.balance, c.name AS category
     FROM discrepancy_overrides o
@@ -432,7 +451,7 @@ app.get('/api/sessions/:id/export', async (req, res) => {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet(monthName);
   sheet.views = [{ state: 'frozen', ySplit: 1 }];
-  sheet.addRow(['Tag Count', 'Category Name', 'Item Number', 'Description', 'Balance']);
+  sheet.addRow(['Tag Count', 'Category Name', 'Item Number', 'Description', 'Balance', 'Actual Count', 'Missing']);
   sheet.getRow(1).eachCell((cell) => {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F766E' } };
     cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
@@ -444,7 +463,8 @@ app.get('/api/sessions/:id/export', async (req, res) => {
         category: item.category,
         item_number: item.item_number,
         description: item.description,
-        tags: []
+        tags: [],
+        actualTags: []
       });
     }
     groups.get(key).tags.push(item.tag_number);
@@ -452,12 +472,21 @@ app.get('/api/sessions/:id/export', async (req, res) => {
   }, new Map()).values()).map((item) => ({
     ...item,
     tags: item.tags.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
-    balance: item.tags.length
+    actualTags: item.actualTags.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+    balance: item.tags.length,
+    actual_count: item.actualTags.length,
+    missing: item.tags.length - item.actualTags.length
   }));
+  const scannedTags = new Set(rows('SELECT tag_number FROM scan_events WHERE session_id = ?', [session.id]).map((scan) => scan.tag_number));
+  groupedItems.forEach((item) => {
+    item.actualTags = item.tags.filter((tag) => scannedTags.has(tag));
+    item.actual_count = item.actualTags.length;
+    item.missing = item.balance - item.actual_count;
+  });
   groupedItems
     .sort((a, b) => a.category.localeCompare(b.category) || a.item_number.localeCompare(b.item_number, undefined, { numeric: true }))
     .forEach((item) => {
-      sheet.addRow([item.tags.join(', '), item.category, item.item_number, item.description, item.balance]);
+      sheet.addRow([item.tags.join(', '), item.category, item.item_number, item.description, item.balance, item.actual_count, item.missing]);
     });
   sheet.columns.forEach((column) => {
     let max = 12;
