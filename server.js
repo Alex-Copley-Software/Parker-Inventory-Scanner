@@ -9,8 +9,10 @@ const QRCode = require('qrcode');
 const ExcelJS = require('exceljs');
 const { WebSocketServer } = require('ws');
 const { db, rows, row } = require('./db');
+const packageInfo = require('./package.json');
 
 const PORT = Number(process.env.PORT || 3000);
+const APP_VERSION = packageInfo.version;
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 const defaultAllowedOrigins = [
@@ -431,11 +433,11 @@ app.get('/api/sessions/:id/export', async (req, res) => {
   res.send(Buffer.from(buffer));
 });
 
-app.get('/health', (req, res) => res.json({ ok: true }));
+app.get('/health', (req, res) => res.json({ ok: true, version: APP_VERSION }));
 
 server.listen(PORT, '0.0.0.0', () => {
   const publicBase = process.env.PUBLIC_APP_URL || process.env.RAILWAY_PUBLIC_DOMAIN && `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
-  console.log(`Parker Inventory Scanner running at http://localhost:${PORT}`);
+  console.log(`Parker Inventory Scanner v${APP_VERSION} running at http://localhost:${PORT}`);
   console.log(`Scanner URL: ${publicBase ? `${publicBase}/scanner.html` : `http://${lanIp()}:${PORT}/scanner.html`}`);
 }).on('error', (error) => {
   if (error.code === 'EADDRINUSE') {
