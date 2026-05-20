@@ -80,6 +80,7 @@
         <div class="panel">
           <h2>Count Session</h2>
           <span id="sessionStatus" class="status warn">No active session</span>
+          <p class="helper-text">Start a count here, then use the Scanner page on the phone. Every synced scan appears in the live feed below.</p>
           <div class="toolbar">
             <input id="sessionMonth" type="month">
             <button id="startSession">Start new count</button>
@@ -88,6 +89,7 @@
             <button id="completeSession">Complete session</button>
           </div>
           <h3>Live Scan Feed</h3>
+          <p id="scanSummary" class="helper-text">No count session loaded.</p>
           <div id="scanFeed" class="scan-feed"></div>
         </div>
         <aside class="panel">

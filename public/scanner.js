@@ -61,10 +61,12 @@ async function loadSession() {
   }
   if (!activeSession) {
     $('#sessionLine').textContent = 'No active session. Start one on the PC.';
+    $('#startPhoneSession').disabled = false;
     return;
   }
   const label = new Date(activeSession.year, activeSession.month - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
-  $('#sessionLine').textContent = `${label} count is ${activeSession.status}.`;
+  $('#sessionLine').textContent = `Syncing to ${label} count (${activeSession.status}).`;
+  $('#startPhoneSession').disabled = true;
 }
 
 async function flushPending() {
@@ -85,8 +87,8 @@ async function submitScan(tag) {
     addHistory(tag, 'Already counted');
   } else {
     const scan = result.scan;
-    setResult(`${scan.description} confirmed.`, '');
-    addHistory(tag, `${scan.category} confirmed`);
+    setResult(`${scan.description} synced to the active count.`, '');
+    addHistory(tag, `${scan.category} synced`);
   }
 }
 
@@ -135,6 +137,15 @@ async function init() {
   await flushPending();
   $('#startCamera').addEventListener('click', () => startCamera().catch((error) => setResult(error.message, 'bad')));
   $('#stopCamera').addEventListener('click', () => stopCamera().catch(() => {}));
+  $('#startPhoneSession').addEventListener('click', async () => {
+    const now = new Date();
+    activeSession = await api('/api/sessions', {
+      method: 'POST',
+      body: { month: now.getMonth() + 1, year: now.getFullYear() }
+    });
+    await loadSession();
+    setResult('Count session started. Scans will sync here and to the admin live feed.', '');
+  });
   $('#manualScanForm').addEventListener('submit', async (event) => {
     event.preventDefault();
     const tag = $('#manualTag').value.trim().toUpperCase();

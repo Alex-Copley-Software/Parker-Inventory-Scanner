@@ -59,6 +59,10 @@ function toast(message, kind = '') {
   }, 3500);
 }
 
+function safeAsync(action) {
+  action().catch((error) => toast(error.message, 'bad'));
+}
+
 function monthName(session) {
   if (!session) return '';
   return new Date(session.year, session.month - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
@@ -181,8 +185,16 @@ function renderLabels() {
 }
 
 async function loadSession() {
-  state.activeSession = await api('/api/sessions/active');
+  try {
+    state.activeSession = await api('/api/sessions/active');
+  } catch (error) {
+    $('#sessionStatus').textContent = 'Backend unavailable';
+    $('#sessionStatus').className = 'status bad';
+    $('#connectionQr').textContent = error.message;
+    throw error;
+  }
   $('#sessionStatus').textContent = state.activeSession ? `${monthName(state.activeSession)} is ${state.activeSession.status}` : 'No active session';
+  $('#sessionStatus').className = `status ${state.activeSession ? '' : 'warn'}`;
   $('#completeSession').disabled = !state.activeSession;
   $('#pauseSession').disabled = !state.activeSession;
   $('#resumeSession').disabled = !state.activeSession;
@@ -190,11 +202,18 @@ async function loadSession() {
   const connectionQr = apiUrl(`/api/connection-qr?target=${encodeURIComponent(scannerUrl())}`);
   $('#connectionQr').innerHTML = state.activeSession ? `<img src="${connectionQr}" alt="Scanner connection QR">` : 'Start a count session to show phone connection QR.';
   updateScannerLink();
-  if (state.activeSession) await loadScans();
+  if (state.activeSession) {
+    await loadScans();
+  } else {
+    $('#scanSummary').textContent = 'Start a count session before scanning.';
+    $('#scanFeed').innerHTML = '<p>No scans yet.</p>';
+  }
 }
 
 async function loadScans() {
+  if (!state.activeSession) return;
   state.scans = await api(`/api/sessions/${state.activeSession.id}/scans`);
+  $('#scanSummary').textContent = `${state.scans.length} item${state.scans.length === 1 ? '' : 's'} scanned in this session.`;
   $('#scanFeed').innerHTML = state.scans.map((scan) => `
     <div class="feed-item">
       <strong>${scan.tag_number} - ${scan.description || 'Unknown item'}</strong>
@@ -280,26 +299,25 @@ function connectSocket() {
     if (message.type === 'sessions:changed') await loadSession();
     if (message.type === 'review:changed') await loadReview();
   };
-  socket.onclose = () => setTimeout(connectSocket, 1500);
+  socket.onerror = () => {};
+  socket.onclose = () => setTimeout(connectSocket, 3000);
 }
 
-async function init() {
+function bindUi() {
   $('#apiBaseUrl').value = configuredApiBase();
   $('#sessionMonth').value = new Date().toISOString().slice(0, 7);
-  await loadCategories();
-  await suggestTag();
-  await loadItems();
-  await loadSession();
-  connectSocket();
-
-  $('#category').addEventListener('change', suggestTag);
+  $$('.tabs button').forEach((button) => button.addEventListener('click', () => showTab(button.dataset.tab)));
+  updateScannerLink();
+  $('#category').addEventListener('change', () => safeAsync(suggestTag));
   $('#saveApiBase').addEventListener('click', async () => {
     localStorage.setItem('parker-api-base', $('#apiBaseUrl').value.trim().replace(/\/$/, ''));
     updateScannerLink();
     toast('Backend URL saved.');
-    await loadCategories();
-    await loadItems();
-    await loadSession();
+    safeAsync(async () => {
+      await loadCategories();
+      await loadItems();
+      await loadSession();
+    });
   });
   $('#category').addEventListener('change', () => {
     $('#newCategoryRow').classList.toggle('hidden', $('#category').value !== '__new__');
@@ -329,8 +347,8 @@ async function init() {
     }
   });
   $('#cancelEdit').addEventListener('click', resetForm);
-  $('#search').addEventListener('input', loadItems);
-  $('#filterCategory').addEventListener('change', loadItems);
+  $('#search').addEventListener('input', () => safeAsync(loadItems));
+  $('#filterCategory').addEventListener('change', () => safeAsync(loadItems));
   $('#labelCategory').addEventListener('change', renderLabels);
   $('#printLabels').addEventListener('click', () => window.print());
   $('#importForm').addEventListener('submit', async (event) => {
@@ -341,16 +359,27 @@ async function init() {
     toast(`Imported ${result.imported} items.`);
     await loadItems();
   });
-  $('#startSession').addEventListener('click', startSession);
-  updateScannerLink();
-  $('#pauseSession').addEventListener('click', () => setSessionStatus('paused'));
-  $('#resumeSession').addEventListener('click', () => setSessionStatus('active'));
-  $('#completeSession').addEventListener('click', () => setSessionStatus('complete'));
-  $('#refreshReview').addEventListener('click', loadReview);
+  $('#startSession').addEventListener('click', () => safeAsync(startSession));
+  $('#pauseSession').addEventListener('click', () => safeAsync(() => setSessionStatus('paused')));
+  $('#resumeSession').addEventListener('click', () => safeAsync(() => setSessionStatus('active')));
+  $('#completeSession').addEventListener('click', () => safeAsync(() => setSessionStatus('complete')));
+  $('#refreshReview').addEventListener('click', () => safeAsync(loadReview));
   $('#exportButton').addEventListener('click', () => {
     if (state.activeSession) location.href = apiUrl(`/api/sessions/${state.activeSession.id}/export`);
   });
-  $$('.tabs button').forEach((button) => button.addEventListener('click', () => showTab(button.dataset.tab)));
+}
+
+async function init() {
+  bindUi();
+  await loadCategories();
+  await suggestTag();
+  await loadItems();
+  await loadSession();
+  connectSocket();
+  setInterval(() => safeAsync(async () => {
+    await loadSession();
+    if (state.activeSession) await loadScans();
+  }), 5000);
 }
 
 init().catch((error) => toast(error.message, 'bad'));

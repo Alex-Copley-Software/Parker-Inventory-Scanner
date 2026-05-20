@@ -172,6 +172,11 @@ textarea {
   margin: 14px 0;
 }
 
+.helper-text {
+  color: var(--muted);
+  margin: 6px 0 12px;
+}
+
 .toolbar > * {
   max-width: 260px;
 }
