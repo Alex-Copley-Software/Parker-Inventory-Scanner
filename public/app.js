@@ -148,18 +148,13 @@ window.retireItem = async (id) => {
 };
 
 window.printOne = async (tag) => {
-  const labelCategory = $('#labelCategory');
-  if (labelCategory) labelCategory.value = '';
-  const item = state.items.find((candidate) => candidate.tag_number === tag)
-    || state.labelItems.find((candidate) => candidate.tag_number === tag);
-  const labels = $('#labels');
-  if (!item || !labels) return toast('QR label area is not available yet. Refresh and try again.', 'bad');
-  labels.innerHTML = labelHtml([item]);
-  showTab('labels');
-  setTimeout(async () => {
-    window.print();
-    await renderLabels();
-  }, 150);
+  const allItems = await api('/api/labels');
+  const item = allItems.find((candidate) => candidate.tag_number === tag);
+  const singlePrintSheet = $('#singlePrintSheet');
+  if (!item || !singlePrintSheet) return toast('QR label is not available yet. Refresh and try again.', 'bad');
+  singlePrintSheet.innerHTML = labelHtml([item]);
+  document.body.classList.add('printing-single');
+  setTimeout(() => window.print(), 150);
 };
 
 function labelHtml(items) {
@@ -189,7 +184,15 @@ async function printAllLabels() {
   const labelCategory = $('#labelCategory');
   if (labelCategory) labelCategory.value = '';
   await renderLabels();
+  showTab('labels');
   window.print();
+}
+
+function cleanupSinglePrint() {
+  document.body.classList.remove('printing-single');
+  const singlePrintSheet = $('#singlePrintSheet');
+  if (singlePrintSheet) singlePrintSheet.innerHTML = '';
+  safeAsync(renderLabels);
 }
 
 async function loadSession() {
@@ -361,8 +364,10 @@ function bindUi() {
   $('#filterCategory').addEventListener('change', () => safeAsync(loadItems));
   $('#labelCategory').addEventListener('change', () => safeAsync(renderLabels));
   $('#refreshLabels').addEventListener('click', () => safeAsync(renderLabels));
+  $('#printAllLabelsNav').addEventListener('click', () => safeAsync(printAllLabels));
   $('#printAllLabelsTop').addEventListener('click', () => safeAsync(printAllLabels));
   $('#printAllLabelsBottom').addEventListener('click', () => safeAsync(printAllLabels));
+  window.addEventListener('afterprint', cleanupSinglePrint);
   $('#importForm').addEventListener('submit', async (event) => {
     event.preventDefault();
     const form = new FormData();

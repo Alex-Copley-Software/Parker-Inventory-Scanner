@@ -418,6 +418,10 @@ td.actions {
   min-width: 220px;
 }
 
+.single-print-sheet {
+  display: none;
+}
+
 .label {
   width: 2.625in;
   height: 1in;
@@ -589,6 +593,21 @@ td.actions {
   }
 
   .label-sheet {
+    grid-template-columns: repeat(3, 2.625in);
+    grid-template-rows: repeat(10, 1in);
+    grid-auto-rows: 1in;
+    column-gap: 0.118in;
+    row-gap: 0;
+    width: 8.124in;
+    min-height: 10in;
+  }
+
+  body.printing-single .shell {
+    display: none !important;
+  }
+
+  body.printing-single .single-print-sheet {
+    display: grid;
     grid-template-columns: repeat(3, 2.625in);
     grid-template-rows: repeat(10, 1in);
     grid-auto-rows: 1in;
