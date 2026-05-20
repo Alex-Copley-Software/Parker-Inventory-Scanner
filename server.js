@@ -180,7 +180,7 @@ app.get('/api/items/next-tag', (req, res) => {
 });
 
 app.post('/api/items', (req, res) => {
-  const { tag_number, category_id, item_number, description, balance } = req.body;
+  const { tag_number, category_id, item_number, description } = req.body;
   if (!tag_number || !category_id || !item_number || !description) {
     return res.status(400).json({ error: 'Tag #, category, item number, and description are required.' });
   }
@@ -188,7 +188,7 @@ app.post('/api/items', (req, res) => {
     const info = db.prepare(`
       INSERT INTO items (tag_number, category_id, item_number, description, balance)
       VALUES (?, ?, ?, ?, ?)
-    `).run(tag_number.trim(), Number(category_id), item_number.trim(), description.trim(), Number(balance || 1));
+    `).run(tag_number.trim(), Number(category_id), item_number.trim(), description.trim(), 1);
     res.status(201).json(row(itemSelect('WHERE i.id = ?'), [info.lastInsertRowid]));
     broadcast('items:changed', {});
   } catch (error) {
@@ -197,12 +197,12 @@ app.post('/api/items', (req, res) => {
 });
 
 app.put('/api/items/:id', (req, res) => {
-  const { tag_number, category_id, item_number, description, balance } = req.body;
+  const { tag_number, category_id, item_number, description } = req.body;
   db.prepare(`
     UPDATE items
     SET tag_number = ?, category_id = ?, item_number = ?, description = ?, balance = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
-  `).run(tag_number.trim(), Number(category_id), item_number.trim(), description.trim(), Number(balance || 1), Number(req.params.id));
+  `).run(tag_number.trim(), Number(category_id), item_number.trim(), description.trim(), 1, Number(req.params.id));
   broadcast('items:changed', {});
   res.json(row(itemSelect('WHERE i.id = ?'), [Number(req.params.id)]));
 });
@@ -238,10 +238,10 @@ app.post('/api/items/import', upload.single('file'), (req, res) => {
   `);
   let imported = 0;
   const transaction = db.transaction((records) => {
-    for (const [tag, category, itemNumber, description, balance] of records) {
+    for (const [tag, category, itemNumber, description] of records) {
       const categoryId = ensureCategory(category);
       if (tag && categoryId && itemNumber && description) {
-        insert.run(tag, categoryId, itemNumber, description, Number(balance || 1));
+        insert.run(tag, categoryId, itemNumber, description, 1);
         imported += 1;
       }
     }
@@ -395,13 +395,30 @@ app.get('/api/sessions/:id/export', async (req, res) => {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F766E' } };
     cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
   });
+  const groupedItems = Array.from(items.reduce((groups, item) => {
+    const key = [item.category, item.item_number, item.description].join('\u001F');
+    if (!groups.has(key)) {
+      groups.set(key, {
+        category: item.category,
+        item_number: item.item_number,
+        description: item.description,
+        tags: []
+      });
+    }
+    groups.get(key).tags.push(item.tag_number);
+    return groups;
+  }, new Map()).values()).map((item) => ({
+    ...item,
+    tags: item.tags.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+    balance: item.tags.length
+  }));
   let grandTotal = 0;
   for (const category of rows('SELECT name FROM categories ORDER BY name').map((item) => item.name)) {
-    const group = items.filter((item) => item.category === category);
+    const group = groupedItems.filter((item) => item.category === category);
     if (!group.length) continue;
     let subtotal = 0;
     for (const item of group) {
-      sheet.addRow([item.tag_number, item.category, item.item_number, item.description, item.balance]);
+      sheet.addRow([item.tags.join(', '), item.category, item.item_number, item.description, item.balance]);
       subtotal += item.balance;
       grandTotal += item.balance;
     }

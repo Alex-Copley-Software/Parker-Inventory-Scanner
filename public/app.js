@@ -102,7 +102,6 @@ function renderItems() {
       <td>${item.category}</td>
       <td>${item.item_number}</td>
       <td>${item.description}</td>
-      <td>${item.balance}</td>
       <td class="actions">
         <button class="secondary" onclick="editItem(${item.id})">Edit</button>
         <button class="secondary" onclick="printOne('${item.tag_number}')">QR</button>
@@ -120,15 +119,13 @@ function formPayload() {
     tag_number: $('#tag_number').value,
     category_id: Number($('#category').value),
     item_number: $('#item_number').value,
-    description: $('#description').value,
-    balance: Number($('#balance').value || 1)
+    description: $('#description').value
   };
 }
 
 function resetForm() {
   state.editingId = null;
   $('#itemForm').reset();
-  $('#balance').value = 1;
   $('#saveItem').textContent = 'Save & generate QR';
   suggestTag();
 }
@@ -141,7 +138,6 @@ window.editItem = (id) => {
   $('#category').value = category.id;
   $('#item_number').value = item.item_number;
   $('#description').value = item.description;
-  $('#balance').value = item.balance;
   $('#saveItem').textContent = 'Update item';
 };
 
@@ -257,7 +253,7 @@ function reviewCard(item, missing = false) {
   return `
     <div class="review-card ${missing ? 'missing' : ''}">
       <strong>${item.tag_number} - ${item.description}</strong>
-      <div>${item.category} | ${item.item_number} | Balance ${item.balance}</div>
+      <div>${item.category} | ${item.item_number}</div>
       ${missing ? `
         <select id="override-status-${item.id}">
           <option value="missing">Confirmed missing</option>
