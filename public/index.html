@@ -129,14 +129,17 @@
       <div class="panel print-panel">
         <div class="no-print">
           <h2>QR Labels</h2>
+          <div class="label-print-actions label-print-actions-top">
+            <button id="printAllLabelsTop" type="button">Print All QR Labels</button>
+          </div>
           <div class="toolbar">
             <select id="labelCategory"></select>
-            <button id="printLabels">Print labels</button>
+            <button id="refreshLabels" class="secondary" type="button">Refresh Labels</button>
           </div>
         </div>
         <div id="labels" class="label-sheet"></div>
         <div class="label-print-actions no-print">
-          <button id="printLabelsBottom" type="button">Print QR Labels</button>
+          <button id="printAllLabelsBottom" type="button">Print All QR Labels</button>
         </div>
       </div>
     </section>

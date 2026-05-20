@@ -409,6 +409,11 @@ td.actions {
   margin-top: 18px;
 }
 
+.label-print-actions-top {
+  justify-content: flex-start;
+  margin: 0 0 12px;
+}
+
 .label-print-actions button {
   min-width: 220px;
 }

@@ -156,7 +156,10 @@ window.printOne = async (tag) => {
   if (!item || !labels) return toast('QR label area is not available yet. Refresh and try again.', 'bad');
   labels.innerHTML = labelHtml([item]);
   showTab('labels');
-  setTimeout(() => window.print(), 150);
+  setTimeout(async () => {
+    window.print();
+    await renderLabels();
+  }, 150);
 };
 
 function labelHtml(items) {
@@ -180,6 +183,13 @@ async function renderLabels() {
   if (labelCategory.value) params.set('category', labelCategory.value);
   state.labelItems = await api(`/api/labels?${params.toString()}`);
   labels.innerHTML = labelHtml(state.labelItems);
+}
+
+async function printAllLabels() {
+  const labelCategory = $('#labelCategory');
+  if (labelCategory) labelCategory.value = '';
+  await renderLabels();
+  window.print();
 }
 
 async function loadSession() {
@@ -350,8 +360,9 @@ function bindUi() {
   $('#search').addEventListener('input', () => safeAsync(loadItems));
   $('#filterCategory').addEventListener('change', () => safeAsync(loadItems));
   $('#labelCategory').addEventListener('change', () => safeAsync(renderLabels));
-  $('#printLabels').addEventListener('click', () => window.print());
-  $('#printLabelsBottom').addEventListener('click', () => window.print());
+  $('#refreshLabels').addEventListener('click', () => safeAsync(renderLabels));
+  $('#printAllLabelsTop').addEventListener('click', () => safeAsync(printAllLabels));
+  $('#printAllLabelsBottom').addEventListener('click', () => safeAsync(printAllLabels));
   $('#importForm').addEventListener('submit', async (event) => {
     event.preventDefault();
     const form = new FormData();
