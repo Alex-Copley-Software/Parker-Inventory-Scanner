@@ -30,8 +30,10 @@ function scannerUrl() {
 }
 
 function updateScannerLink() {
-  const link = $('#openScanner');
-  if (link) link.href = scannerUrl();
+  ['#openScanner', '#scannerNav'].forEach((selector) => {
+    const link = $(selector);
+    if (link) link.href = scannerUrl();
+  });
 }
 
 async function api(path, options = {}) {

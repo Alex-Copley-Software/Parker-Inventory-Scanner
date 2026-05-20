@@ -21,6 +21,7 @@
       <button data-tab="sessions">Count Session</button>
       <button data-tab="review">Review & Export</button>
       <button data-tab="labels">QR Labels</button>
+      <a id="scannerNav" class="button-link" href="/scanner.html" target="_blank" rel="noopener">Scanner</a>
     </nav>
 
     <section id="registry" class="tab-page">
@@ -92,7 +93,7 @@
         <aside class="panel">
           <h3>Phone Connection</h3>
           <div id="connectionQr" class="qr-box">Start a count session to show phone connection QR.</div>
-          <p>Scan this with the phone to open the scanner.</p>
+          <p>Use the Scanner button or scan this QR with the phone.</p>
           <a id="openScanner" class="button-link" href="/scanner.html" target="_blank" rel="noopener">Open phone scanner</a>
           <label>Backend URL<input id="apiBaseUrl" placeholder="https://your-api.up.railway.app"></label>
           <button id="saveApiBase" class="secondary" type="button">Save backend URL</button>

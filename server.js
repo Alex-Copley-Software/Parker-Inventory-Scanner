@@ -145,10 +145,11 @@ app.post('/api/categories', (req, res) => {
 });
 
 app.get('/api/network-info', (req, res) => {
+  const publicBase = process.env.PUBLIC_APP_URL || process.env.RAILWAY_PUBLIC_DOMAIN && `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
   res.json({
-    host: lanIp(),
+    host: publicBase ? new URL(publicBase).host : lanIp(),
     port: PORT,
-    scannerUrl: `http://${lanIp()}:${PORT}/scanner.html`
+    scannerUrl: publicBase ? `${publicBase}/scanner.html` : `http://${lanIp()}:${PORT}/scanner.html`
   });
 });
 
@@ -424,8 +425,9 @@ app.get('/api/sessions/:id/export', async (req, res) => {
 app.get('/health', (req, res) => res.json({ ok: true }));
 
 server.listen(PORT, '0.0.0.0', () => {
+  const publicBase = process.env.PUBLIC_APP_URL || process.env.RAILWAY_PUBLIC_DOMAIN && `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
   console.log(`Parker Inventory Scanner running at http://localhost:${PORT}`);
-  console.log(`Scanner URL: http://${lanIp()}:${PORT}/scanner.html`);
+  console.log(`Scanner URL: ${publicBase ? `${publicBase}/scanner.html` : `http://${lanIp()}:${PORT}/scanner.html`}`);
 }).on('error', (error) => {
   if (error.code === 'EADDRINUSE') {
     console.error(`Port ${PORT} is already in use. Close the other app or start this one with PORT=3001 npm start.`);
