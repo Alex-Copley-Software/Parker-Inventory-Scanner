@@ -82,6 +82,15 @@ function nextTagNumber() {
   return `W-${String(max + 1).padStart(3, '0')}`;
 }
 
+function nextBlankTagNumber() {
+  const found = rows("SELECT tag_number FROM items WHERE tag_number LIKE 'BLANK-%'");
+  const max = found.reduce((highest, item) => {
+    const match = item.tag_number.match(/^BLANK-(\d+)$/);
+    return match ? Math.max(highest, Number(match[1])) : highest;
+  }, 0);
+  return `BLANK-${String(max + 1).padStart(3, '0')}`;
+}
+
 function prefixFromName(name) {
   const base = name
     .replace(/&/g, ' ')
@@ -159,6 +168,7 @@ function inventoryImportRows(records) {
     const itemNumber = csvValue(record, headerIndex, ['item number', 'item'], 2);
     const description = csvValue(record, headerIndex, ['description', 'desc'], 3);
     const tags = tagCell.split(',').map((tag) => tag.trim()).filter(Boolean);
+    if (!tags.length) return [{ tag: '', category, itemNumber, description }];
     return tags.map((tag) => ({ tag, category, itemNumber, description }));
   });
 }
@@ -283,20 +293,23 @@ app.post('/api/items/import', upload.single('file'), (req, res) => {
   `);
   let imported = 0;
   let skipped = 0;
+  let blankTagged = 0;
   const transaction = db.transaction((records) => {
     for (const item of inventoryImportRows(records)) {
       const categoryId = ensureCategory(item.category);
-      if (!item.tag || !categoryId) {
+      if (!categoryId) {
         skipped += 1;
         continue;
       }
-      insert.run(item.tag, categoryId, item.itemNumber, item.description, 1);
+      const tag = item.tag || nextBlankTagNumber();
+      if (!item.tag) blankTagged += 1;
+      insert.run(tag, categoryId, item.itemNumber, item.description, 1);
       imported += 1;
     }
   });
   transaction(parseCsv(req.file.buffer.toString('utf8')));
   broadcast('items:changed', {});
-  res.json({ imported, skipped });
+  res.json({ imported, skipped, blankTagged });
 });
 
 app.get('/api/qr/:tag', async (req, res) => {
