@@ -173,12 +173,12 @@ function labelHtml(items) {
 
 async function renderLabels() {
   const labelCategory = $('#labelCategory');
-  const labels = $('#labels');
-  if (!labelCategory || !labels) return;
+  const labelSheet = $('#labelSheet');
+  if (!labelCategory || !labelSheet) return;
   const params = new URLSearchParams();
   if (labelCategory.value) params.set('category', labelCategory.value);
   state.labelItems = await api(`/api/labels?${params.toString()}`);
-  labels.innerHTML = labelHtml(state.labelItems);
+  labelSheet.innerHTML = labelHtml(state.labelItems);
 }
 
 async function printAllLabels() {

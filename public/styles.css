@@ -638,6 +638,7 @@ td.actions {
   }
 
   .label-sheet {
+    display: grid !important;
     grid-template-columns: repeat(3, 2.625in);
     grid-template-rows: repeat(10, 1in);
     grid-auto-rows: 1in;
