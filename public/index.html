@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Parker Inventory Scanner</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar no-print">
+      <div class="brand">
+        <h1>Parker Inventory Scanner</h1>
+        <p>Local QR inventory counts for showroom products.</p>
+      </div>
+      <span id="toast" class="status hidden"></span>
+    </header>
+
+    <nav class="tabs no-print">
+      <button class="active" data-tab="registry">Registry</button>
+      <button data-tab="sessions">Count Session</button>
+      <button data-tab="review">Review & Export</button>
+      <button data-tab="labels">QR Labels</button>
+    </nav>
+
+    <section id="registry" class="tab-page">
+      <div class="layout">
+        <div class="panel">
+          <h2>Item Registry</h2>
+          <div class="toolbar">
+            <input id="search" placeholder="Search tag, item number, or description">
+            <select id="filterCategory"></select>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Tag #</th>
+                <th>Category</th>
+                <th>Item Number</th>
+                <th>Description</th>
+                <th>Balance</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="itemsBody"></tbody>
+          </table>
+        </div>
+
+        <aside class="panel">
+          <h3>Add / Edit Item</h3>
+          <form id="itemForm">
+            <label>Category<select id="category" required></select></label>
+            <div id="newCategoryRow" class="inline-row hidden">
+              <input id="newCategoryName" placeholder="New category name">
+              <button id="addCategory" class="secondary" type="button">Add</button>
+            </div>
+            <label>Tag #<input id="tag_number" required></label>
+            <label>Item Number<input id="item_number" required></label>
+            <label>Description<textarea id="description" rows="3" required></textarea></label>
+            <label>Balance<input id="balance" type="number" min="0" step="1" value="1" required></label>
+            <div class="form-actions">
+              <button id="saveItem" type="submit">Save & generate QR</button>
+              <button id="cancelEdit" class="secondary" type="button">Cancel</button>
+            </div>
+          </form>
+          <hr>
+          <h3>Bulk CSV Import</h3>
+          <form id="importForm">
+            <input id="csvFile" type="file" accept=".csv" required>
+            <p>Columns: Tag #, Category Name, Item Number, Description, Balance</p>
+            <button type="submit">Import CSV</button>
+          </form>
+        </aside>
+      </div>
+    </section>
+
+    <section id="sessions" class="tab-page hidden">
+      <div class="layout">
+        <div class="panel">
+          <h2>Count Session</h2>
+          <span id="sessionStatus" class="status warn">No active session</span>
+          <div class="toolbar">
+            <input id="sessionMonth" type="month">
+            <button id="startSession">Start new count</button>
+            <button id="pauseSession" class="secondary">Pause</button>
+            <button id="resumeSession" class="secondary">Resume</button>
+            <button id="completeSession">Complete session</button>
+          </div>
+          <h3>Live Scan Feed</h3>
+          <div id="scanFeed" class="scan-feed"></div>
+        </div>
+        <aside class="panel">
+          <h3>Phone Connection</h3>
+          <div id="connectionQr" class="qr-box">Start a count session to show phone connection QR.</div>
+          <p>Scan this with the phone to open the scanner.</p>
+          <label>Backend URL<input id="apiBaseUrl" placeholder="https://your-api.up.railway.app"></label>
+          <button id="saveApiBase" class="secondary" type="button">Save backend URL</button>
+        </aside>
+      </div>
+    </section>
+
+    <section id="review" class="tab-page hidden">
+      <div class="panel">
+        <h2>Review & Export</h2>
+        <div class="toolbar">
+          <button id="refreshReview" class="secondary">Refresh review</button>
+          <button id="exportButton">Export to Excel</button>
+        </div>
+        <div class="review-grid">
+          <section>
+            <h3>Scanned</h3>
+            <div id="scannedList" class="review-list"></div>
+          </section>
+          <section>
+            <h3>Not scanned</h3>
+            <div id="notScannedList" class="review-list"></div>
+          </section>
+          <section>
+            <h3>Manual overrides</h3>
+            <div id="overrideList" class="review-list"></div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section id="labels" class="tab-page hidden">
+      <div class="panel print-panel">
+        <div class="no-print">
+          <h2>QR Labels</h2>
+          <div class="toolbar">
+            <select id="labelCategory"></select>
+            <button id="printLabels">Print labels</button>
+          </div>
+        </div>
+        <div id="labels" class="label-sheet"></div>
+      </div>
+    </section>
+  </main>
+  <script src="/config.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

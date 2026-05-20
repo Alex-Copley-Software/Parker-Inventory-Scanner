@@ -1,0 +1,6 @@
+node_modules/
+.netlify/
+data/*.db
+data/*.db-*
+exports/*.xlsx
+.env
