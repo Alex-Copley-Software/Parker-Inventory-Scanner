@@ -221,8 +221,75 @@ function actualCountGroups(sessionId) {
   `, [sessionId]);
 }
 
+function normalizeGroupValue(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '');
+}
+
 function itemGroupKey(item) {
-  return [item.category, item.item_number || '', item.description || ''].join('\u001F');
+  const category = normalizeGroupValue(item.category);
+  const itemNumber = normalizeGroupValue(item.item_number);
+  const description = normalizeGroupValue(item.description);
+  return [category, itemNumber || description].join('\u001F');
+}
+
+function groupedExpectedInventory() {
+  return Array.from(activeExpectedInventory().reduce((groups, item) => {
+    const key = itemGroupKey(item);
+    if (!groups.has(key)) {
+      groups.set(key, {
+        id: item.id,
+        category: item.category,
+        item_number: item.item_number,
+        description: item.description,
+        balance: 0,
+        expected_count: 0,
+        source: 'expected'
+      });
+    }
+    const group = groups.get(key);
+    group.balance += Number(item.balance || 0);
+    group.expected_count = group.balance;
+    return groups;
+  }, new Map()).values());
+}
+
+function reviewComparison(sessionId) {
+  const expectedMap = new Map(groupedExpectedInventory().map((item) => [itemGroupKey(item), item]));
+  const actualGroups = actualCountGroups(sessionId);
+  const actualMap = new Map(actualGroups.map((item) => [itemGroupKey(item), Number(item.actual_count || 0)]));
+  const scanned = actualGroups.map((actual) => {
+    const key = itemGroupKey(actual);
+    const expected = expectedMap.get(key);
+    const balance = Number(expected?.balance || 0);
+    const actualCount = Number(actual.actual_count || 0);
+    return {
+      ...(expected || {}),
+      ...actual,
+      id: expected?.id || key,
+      tag_number: '',
+      source: expected ? 'expected' : 'actual',
+      expected_count: balance,
+      balance,
+      actual_count: actualCount,
+      missing: Math.max(balance - actualCount, 0),
+      overage: Math.max(actualCount - balance, 0)
+    };
+  });
+  const notScanned = Array.from(expectedMap.entries()).map(([key, expected]) => {
+    const actualCount = actualMap.get(key) || 0;
+    return {
+      ...expected,
+      tag_number: '',
+      expected_count: expected.balance,
+      actual_count: actualCount,
+      missing: Math.max(expected.balance - actualCount, 0),
+      overage: Math.max(actualCount - expected.balance, 0)
+    };
+  }).filter((item) => item.missing > 0);
+  return { scanned, notScanned };
 }
 
 function pendingItemSelect(where = '') {
@@ -611,20 +678,7 @@ app.get('/api/sessions/:id/scans', (req, res) => {
 
 app.get('/api/sessions/:id/review', (req, res) => {
   const sessionId = Number(req.params.id);
-  const actualMap = new Map(actualCountGroups(sessionId).map((item) => [itemGroupKey(item), item.actual_count]));
-  const expected = activeExpectedInventory().map((item) => {
-    const actual_count = actualMap.get(itemGroupKey(item)) || 0;
-    return {
-      ...item,
-      tag_number: '',
-      source: 'expected',
-      expected_count: item.balance,
-      actual_count,
-      missing: Math.max(item.balance - actual_count, 0)
-    };
-  });
-  const scanned = expected.filter((item) => item.actual_count > 0);
-  const notScanned = expected.filter((item) => item.missing > 0);
+  const { scanned, notScanned } = reviewComparison(sessionId);
   const overrides = rows(`
     SELECT o.*, i.tag_number, i.item_number, i.description, i.balance, c.name AS category
     FROM discrepancy_overrides o
@@ -655,8 +709,7 @@ app.get('/api/sessions/:id/export', async (req, res) => {
   const session = row('SELECT * FROM count_sessions WHERE id = ?', [Number(req.params.id)]);
   if (!session) return res.status(404).json({ error: 'Session not found.' });
   const monthName = new Date(session.year, session.month - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
-  const expectedItems = activeExpectedInventory();
-  const actualMap = new Map(actualCountGroups(session.id).map((item) => [itemGroupKey(item), item.actual_count]));
+  const { scanned, notScanned } = reviewComparison(session.id);
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet(monthName);
   sheet.views = [{ state: 'frozen', ySplit: 1 }];
@@ -665,25 +718,8 @@ app.get('/api/sessions/:id/export', async (req, res) => {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F766E' } };
     cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
   });
-  const groupedItems = Array.from(expectedItems.reduce((groups, item) => {
-    const key = [item.category, item.item_number, item.description].join('\u001F');
-    if (!groups.has(key)) {
-      groups.set(key, {
-        category: item.category,
-        item_number: item.item_number,
-        description: item.description,
-        tags: [],
-        balance: 0
-      });
-    }
-    groups.get(key).balance += Number(item.balance || 0);
-    return groups;
-  }, new Map()).values()).map((item) => ({
-    ...item,
-    actual_count: actualMap.get(itemGroupKey(item)) || 0,
-    missing: Math.max(item.balance - (actualMap.get(itemGroupKey(item)) || 0), 0)
-  }));
-  groupedItems
+  const exportRows = [...scanned, ...notScanned.filter((missingItem) => !scanned.some((scannedItem) => itemGroupKey(scannedItem) === itemGroupKey(missingItem)))];
+  exportRows
     .sort((a, b) => a.category.localeCompare(b.category) || a.item_number.localeCompare(b.item_number, undefined, { numeric: true }))
     .forEach((item) => {
       sheet.addRow(['', item.category, item.item_number, item.description, item.balance, item.actual_count, item.missing]);
