@@ -158,20 +158,21 @@ function inventoryImportRows(records) {
   if (!records.length) return [];
   const headers = records[0].map(normalizeHeader);
   const headerIndex = new Map(headers.map((header, index) => [header, index]));
-  const hasRecognizedHeaders = ['tag count', 'tag number', 'tag', 'category name', 'item number', 'description']
+  const hasRecognizedHeaders = ['tag count', 'tag number', 'tag', 'category name', 'category', 'item number', 'description']
     .some((header) => headerIndex.has(header));
   const dataRows = hasRecognizedHeaders ? records.slice(1) : records;
 
-  return dataRows.flatMap((record) => {
-    const tagAliases = ['tag count', 'tag number', 'tag'];
-    const tagCell = hasRecognizedHeaders && !hasHeader(headerIndex, tagAliases) ? '' : csvValue(record, headerIndex, tagAliases, 0);
-    const category = csvValue(record, headerIndex, ['category name', 'category'], 1);
-    const itemNumber = csvValue(record, headerIndex, ['item number', 'item'], 2);
-    const description = csvValue(record, headerIndex, ['description', 'desc'], 3);
-    const balance = numericBalance(csvValue(record, headerIndex, ['balance', 'expected balance', 'count'], 4));
-    const tags = tagCell.split(',').map((tag) => tag.trim()).filter(Boolean);
-    if (!tags.length) return [{ tag: '', category, itemNumber, description, balance, expectedOnly: true }];
-    return tags.map((tag) => ({ tag, category, itemNumber, description, balance: 1, expectedOnly: false }));
+  return dataRows.map((record) => {
+    const categoryFallback = hasRecognizedHeaders ? 1 : 0;
+    const itemFallback = hasRecognizedHeaders ? 2 : 1;
+    const descriptionFallback = hasRecognizedHeaders ? 3 : 2;
+    const balanceFallback = hasRecognizedHeaders ? 4 : 3;
+    return {
+      category: csvValue(record, headerIndex, ['category name', 'category'], categoryFallback),
+      itemNumber: csvValue(record, headerIndex, ['item number', 'item'], itemFallback),
+      description: csvValue(record, headerIndex, ['description', 'desc'], descriptionFallback),
+      balance: numericBalance(csvValue(record, headerIndex, ['balance', 'expected balance', 'count'], balanceFallback))
+    };
   });
 }
 
@@ -243,6 +244,10 @@ app.get('/api/items', (req, res) => {
   res.json(rows(sql, params));
 });
 
+app.get('/api/expected-inventory', (req, res) => {
+  res.json(activeExpectedInventory());
+});
+
 app.get('/api/items/next-tag/:categoryId', (req, res) => {
   res.json({ tag_number: nextTagNumber() });
 });
@@ -307,17 +312,6 @@ app.post('/api/items/import', upload.single('file'), (req, res) => {
     categoryMap.set(key, info.lastInsertRowid);
     return info.lastInsertRowid;
   };
-  const insert = db.prepare(`
-    INSERT INTO items (tag_number, category_id, item_number, description, balance)
-    VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(tag_number) DO UPDATE SET
-      category_id = excluded.category_id,
-      item_number = excluded.item_number,
-      description = excluded.description,
-      balance = excluded.balance,
-      retired_at = NULL,
-      updated_at = CURRENT_TIMESTAMP
-  `);
   const insertExpected = db.prepare(`
     INSERT INTO expected_inventory (category_id, item_number, description, balance)
     VALUES (?, ?, ?, ?)
@@ -325,7 +319,6 @@ app.post('/api/items/import', upload.single('file'), (req, res) => {
   let imported = 0;
   let skipped = 0;
   let expectedImported = 0;
-  let taggedImported = 0;
   const transaction = db.transaction((records) => {
     for (const item of inventoryImportRows(records)) {
       const categoryId = ensureCategory(item.category);
@@ -333,19 +326,14 @@ app.post('/api/items/import', upload.single('file'), (req, res) => {
         skipped += 1;
         continue;
       }
-      if (item.expectedOnly) {
-        insertExpected.run(categoryId, item.itemNumber, item.description, item.balance);
-        expectedImported += 1;
-      } else {
-        insert.run(item.tag, categoryId, item.itemNumber, item.description, 1);
-        taggedImported += 1;
-      }
+      insertExpected.run(categoryId, item.itemNumber, item.description, item.balance);
+      expectedImported += 1;
       imported += 1;
     }
   });
   transaction(parseCsv(req.file.buffer.toString('utf8')));
   broadcast('items:changed', {});
-  res.json({ imported, skipped, expectedImported, taggedImported });
+  res.json({ imported, skipped, expectedImported, taggedImported: 0 });
 });
 
 app.get('/api/qr/:tag', async (req, res) => {

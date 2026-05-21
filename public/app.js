@@ -1,6 +1,7 @@
 const state = {
   categories: [],
   items: [],
+  expectedItems: [],
   labelItems: [],
   editingId: null,
   activeSession: null,
@@ -97,6 +98,11 @@ async function loadItems() {
   renderItems();
 }
 
+async function loadExpectedItems() {
+  state.expectedItems = await api('/api/expected-inventory');
+  renderExpectedItems();
+}
+
 function renderItems() {
   $('#itemsBody').innerHTML = state.items.map((item) => `
     <tr>
@@ -111,6 +117,19 @@ function renderItems() {
       </td>
     </tr>
   `).join('');
+}
+
+function renderExpectedItems() {
+  const body = $('#expectedBody');
+  if (!body) return;
+  body.innerHTML = state.expectedItems.map((item) => `
+    <tr>
+      <td>${item.category}</td>
+      <td>${item.item_number}</td>
+      <td>${item.description}</td>
+      <td>${item.balance}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="4">No expected inventory imported.</td></tr>';
 }
 
 function formPayload() {
@@ -153,7 +172,7 @@ async function retireAllItems() {
   if (!confirm('Clear the current expected inventory comparison list? QR tags in the registry will not be retired.')) return;
   const result = await api('/api/items/retire-all', { method: 'POST' });
   toast(`Cleared ${result.retired} expected item${result.retired === 1 ? '' : 's'}.`);
-  await loadItems();
+  await loadExpectedItems();
   await renderLabels();
 }
 
@@ -378,7 +397,10 @@ function connectSocket() {
   socket.onmessage = async (event) => {
     const message = JSON.parse(event.data);
     if (message.type === 'scan:created' && state.activeSession) await loadScans();
-    if (message.type === 'items:changed') await loadItems();
+    if (message.type === 'items:changed') {
+      await loadItems();
+      await loadExpectedItems();
+    }
     if (message.type === 'sessions:changed') await loadSession();
     if (message.type === 'review:changed') await loadReview();
   };
@@ -443,8 +465,8 @@ function bindUi() {
     const form = new FormData();
     form.append('file', $('#csvFile').files[0]);
     const result = await api('/api/items/import', { method: 'POST', body: form });
-    toast(`Imported ${result.expectedImported || result.imported} expected rows${result.taggedImported ? `, ${result.taggedImported} tagged items` : ''}${result.skipped ? `, skipped ${result.skipped}` : ''}.`);
-    await loadItems();
+    toast(`Imported ${result.expectedImported || result.imported} expected rows${result.skipped ? `, skipped ${result.skipped}` : ''}.`);
+    await loadExpectedItems();
   });
   $('#retireAllItems').addEventListener('click', () => safeAsync(retireAllItems));
   $('#labelSlotGrid').addEventListener('click', (event) => {
@@ -475,6 +497,7 @@ async function init() {
   await loadCategories();
   await suggestTag();
   await loadItems();
+  await loadExpectedItems();
   await loadSession();
   connectSocket();
   setInterval(() => safeAsync(async () => {
