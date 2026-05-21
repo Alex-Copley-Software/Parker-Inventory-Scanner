@@ -254,6 +254,14 @@ async function retireAllItems() {
   await renderLabels();
 }
 
+async function retireAllQrTags() {
+  if (!confirm('Retire every active QR tag in the registry? Expected inventory rows will not be changed.')) return;
+  const result = await api('/api/items/retire-all-tags', { method: 'POST' });
+  toast(`Retired ${result.retired} QR tag${result.retired === 1 ? '' : 's'}.`);
+  await loadItems();
+  await renderLabels();
+}
+
 window.printOne = async (tag) => {
   const allItems = await api('/api/labels');
   const item = allItems.find((candidate) => candidate.tag_number === tag);
@@ -573,6 +581,7 @@ function bindUi() {
     renderImportedLabels(result.items || []);
   });
   $('#retireAllItems').addEventListener('click', () => safeAsync(retireAllItems));
+  $('#retireAllQrTags').addEventListener('click', () => safeAsync(retireAllQrTags));
   document.addEventListener('click', (event) => {
     const button = event.target.closest('button[data-slot]');
     if (!button) return;

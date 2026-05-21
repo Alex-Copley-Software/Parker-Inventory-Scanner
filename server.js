@@ -498,6 +498,16 @@ app.post('/api/items/retire-all', (req, res) => {
   res.json({ retired: info.changes });
 });
 
+app.post('/api/items/retire-all-tags', (req, res) => {
+  const info = db.prepare(`
+    UPDATE items
+    SET retired_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+    WHERE retired_at IS NULL
+  `).run();
+  broadcast('items:changed', {});
+  res.json({ retired: info.changes });
+});
+
 app.post('/api/items/import', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'CSV file is required.' });
   const categoryMap = new Map(rows('SELECT id, name FROM categories').map((c) => [c.name.toLowerCase(), c.id]));
