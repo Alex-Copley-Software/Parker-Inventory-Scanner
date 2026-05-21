@@ -20,16 +20,44 @@ function apiUrl(path) {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(apiUrl(path), {
-    headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
-    ...options,
-    body: options.body ? JSON.stringify(options.body) : undefined
-  });
+  let response;
+  try {
+    response = await fetch(apiUrl(path), {
+      headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
+      ...options,
+      body: options.body ? JSON.stringify(options.body) : undefined
+    });
+  } catch (error) {
+    const networkError = new Error('Cannot reach backend right now.');
+    networkError.isNetworkError = true;
+    throw networkError;
+  }
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(error.error || response.statusText);
+    const apiError = new Error(error.error || response.statusText);
+    apiError.status = response.status;
+    throw apiError;
   }
   return response.json();
+}
+
+async function postScan(tag) {
+  return api('/api/scans', { method: 'POST', body: { session_id: activeSession.id, tag_number: tag } });
+}
+
+function shouldQueueScanError(error) {
+  return error.isNetworkError;
+}
+
+function showScanSuccess(tag, result) {
+  if (result.duplicate) {
+    setResult(`${tag} was already counted.`, 'warn');
+    addHistory(tag, 'Already counted');
+  } else {
+    const scan = result.scan;
+    setResult(`${scan.description} synced to the active count.`, '');
+    addHistory(tag, `${scan.category} synced`);
+  }
 }
 
 function setResult(message, kind = '') {
@@ -85,23 +113,29 @@ async function flushPending() {
   if (!activeSession || !navigator.onLine) return;
   const tags = pending();
   if (!tags.length) return;
-  const result = await api('/api/scans/batch', { method: 'POST', body: { session_id: activeSession.id, tags } });
-  savePending([]);
-  addHistory('Queued scans', `${result.results.length} synced`);
+  try {
+    const result = await api('/api/scans/batch', { method: 'POST', body: { session_id: activeSession.id, tags } });
+    const retryTags = [];
+    let synced = 0;
+    result.results.forEach((item) => {
+      if (item.error) {
+        addHistory(item.tag, item.error);
+      } else {
+        synced += 1;
+      }
+    });
+    savePending(retryTags);
+    addHistory('Queued scans', `${synced} synced, ${result.results.length - synced} rejected`);
+  } catch (error) {
+    if (shouldQueueScanError(error)) setResult('Backend still unreachable. Queued scans will retry automatically.', 'warn');
+    else setResult(error.message, 'bad');
+  }
 }
 
 async function submitScan(tag) {
   if (!activeSession) await loadSession();
   if (!activeSession) throw new Error('No active count session.');
-  const result = await api('/api/scans', { method: 'POST', body: { session_id: activeSession.id, tag_number: tag } });
-  if (result.duplicate) {
-    setResult(`${tag} was already counted.`, 'warn');
-    addHistory(tag, 'Already counted');
-  } else {
-    const scan = result.scan;
-    setResult(`${scan.description} synced to the active count.`, '');
-    addHistory(tag, `${scan.category} synced`);
-  }
+  showScanSuccess(tag, await postScan(tag));
 }
 
 async function handleScan(rawText) {
@@ -112,10 +146,14 @@ async function handleScan(rawText) {
   try {
     await submitScan(tag);
   } catch (error) {
-    const queue = pending();
-    queue.push(tag);
-    savePending(queue);
-    setResult(`${tag} queued until Wi-Fi reconnects.`, 'warn');
+    if (shouldQueueScanError(error)) {
+      const queue = pending();
+      queue.push(tag);
+      savePending(queue);
+      setResult(`${tag} queued because the backend could not be reached.`, 'warn');
+    } else {
+      setResult(error.message, 'bad');
+    }
     addHistory(tag, error.message);
   }
 }
