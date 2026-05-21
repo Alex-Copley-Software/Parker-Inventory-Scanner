@@ -114,6 +114,10 @@
           <div id="scanFeed" class="scan-feed"></div>
           <h3>Pending New Items</h3>
           <p class="helper-text">Items saved from the phone appear here. Edit them, create their QR item, then print one or all newly approved labels.</p>
+          <h3>Print Slot Selection</h3>
+          <p class="helper-text">Click label slots that are already used on the sheet. Printed QR labels will skip those positions.</p>
+          <div id="pendingLabelSlotGrid" class="label-slot-grid"></div>
+          <button class="secondary clear-label-slots" type="button">Clear skipped slots</button>
           <div class="toolbar">
             <button id="refreshPendingItems" class="secondary" type="button">Refresh pending</button>
             <button id="printAllPendingItems" type="button">Print All Pending QR</button>
@@ -164,7 +168,7 @@
           </div>
           <h3>Skip Used Label Slots</h3>
           <div id="labelSlotGrid" class="label-slot-grid"></div>
-          <button id="clearLabelSlots" class="secondary" type="button">Clear skipped slots</button>
+          <button class="secondary clear-label-slots" type="button">Clear skipped slots</button>
           <div class="toolbar">
             <select id="labelCategory"></select>
             <button id="refreshLabels" class="secondary" type="button">Refresh Labels</button>

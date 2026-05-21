@@ -193,7 +193,7 @@ async function approvePendingItem(card) {
 async function printPendingItem(card) {
   const item = await approvePendingItem(card);
   const singlePrintSheet = $('#singlePrintSheet');
-  singlePrintSheet.innerHTML = labelHtml([item], new Set());
+  singlePrintSheet.innerHTML = labelHtml([item]);
   document.body.classList.add('printing-single');
   setTimeout(() => window.print(), 150);
 }
@@ -259,7 +259,7 @@ window.printOne = async (tag) => {
   const item = allItems.find((candidate) => candidate.tag_number === tag);
   const singlePrintSheet = $('#singlePrintSheet');
   if (!item || !singlePrintSheet) return toast('QR label is not available yet. Refresh and try again.', 'bad');
-  singlePrintSheet.innerHTML = labelHtml([item], new Set());
+  singlePrintSheet.innerHTML = labelHtml([item]);
   document.body.classList.add('printing-single');
   setTimeout(() => window.print(), 150);
 };
@@ -295,13 +295,14 @@ function labelHtml(items, skippedSlots = state.skippedLabelSlots) {
 }
 
 function renderLabelSlotGrid() {
-  const grid = $('#labelSlotGrid');
-  if (!grid) return;
-  grid.innerHTML = Array.from({ length: 30 }, (_, index) => `
+  const markup = Array.from({ length: 30 }, (_, index) => `
     <button class="${state.skippedLabelSlots.has(index) ? 'skipped' : ''}" data-slot="${index}" type="button">
       ${index + 1}
     </button>
   `).join('');
+  $$('.label-slot-grid').forEach((grid) => {
+    grid.innerHTML = markup;
+  });
 }
 
 async function renderLabels() {
@@ -550,6 +551,7 @@ function bindUi() {
   $('#printAllLabelsTop').addEventListener('click', () => safeAsync(printAllLabels));
   $('#printAllLabelsBottom').addEventListener('click', () => safeAsync(printAllLabels));
   window.addEventListener('afterprint', cleanupSinglePrint);
+  renderLabelSlotGrid();
   $('#importForm').addEventListener('submit', async (event) => {
     event.preventDefault();
     const form = new FormData();
@@ -568,7 +570,7 @@ function bindUi() {
     renderImportedLabels(result.items || []);
   });
   $('#retireAllItems').addEventListener('click', () => safeAsync(retireAllItems));
-  $('#labelSlotGrid').addEventListener('click', (event) => {
+  document.addEventListener('click', (event) => {
     const button = event.target.closest('button[data-slot]');
     if (!button) return;
     const slot = Number(button.dataset.slot);
@@ -576,10 +578,10 @@ function bindUi() {
     else state.skippedLabelSlots.add(slot);
     safeAsync(renderLabels);
   });
-  $('#clearLabelSlots').addEventListener('click', () => {
+  $$('.clear-label-slots').forEach((button) => button.addEventListener('click', () => {
     state.skippedLabelSlots.clear();
     safeAsync(renderLabels);
-  });
+  }));
   $('#refreshPendingItems').addEventListener('click', () => safeAsync(loadPendingItems));
   $('#printAllPendingItems').addEventListener('click', () => safeAsync(printAllPendingItems));
   $('#pendingItems').addEventListener('click', (event) => {
