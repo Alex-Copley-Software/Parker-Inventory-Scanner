@@ -283,6 +283,36 @@ td.actions {
   border-color: #f3b5af;
 }
 
+.pending-items {
+  display: grid;
+  gap: 12px;
+}
+
+.pending-item {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: white;
+}
+
+.pending-item.approved {
+  border-color: #9fd6bf;
+}
+
+.pending-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pending-grid label:last-child {
+  grid-column: 1 / -1;
+}
+
+.pending-actions {
+  margin: 10px 0;
+}
+
 .retire-all-button {
   width: 100%;
   margin-top: 14px;
@@ -582,7 +612,8 @@ td.actions {
 
   .scanner-camera-panel .form-actions,
   .manual-scan,
-  .scanner-form-grid {
+  .scanner-form-grid,
+  .pending-grid {
     grid-template-columns: 1fr;
     gap: 8px;
   }

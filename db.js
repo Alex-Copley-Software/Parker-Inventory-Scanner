@@ -39,6 +39,18 @@ CREATE TABLE IF NOT EXISTS expected_inventory (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS pending_new_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tag_number TEXT NOT NULL,
+  category_id INTEGER NOT NULL REFERENCES categories(id),
+  item_number TEXT NOT NULL,
+  description TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved')),
+  item_id INTEGER REFERENCES items(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS count_sessions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   month INTEGER NOT NULL,
@@ -79,6 +91,7 @@ CREATE TABLE IF NOT EXISTS export_archives (
 
 CREATE INDEX IF NOT EXISTS idx_items_tag_number ON items(tag_number);
 CREATE INDEX IF NOT EXISTS idx_expected_inventory_active ON expected_inventory(retired_at, category_id, item_number, description);
+CREATE INDEX IF NOT EXISTS idx_pending_new_items_status ON pending_new_items(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_scan_events_session_id ON scan_events(session_id);
 CREATE INDEX IF NOT EXISTS idx_scan_events_tag_number ON scan_events(tag_number);
 CREATE INDEX IF NOT EXISTS idx_overrides_session_id ON discrepancy_overrides(session_id);

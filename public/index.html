@@ -112,6 +112,13 @@
           <h3>Live Scan Feed</h3>
           <p id="scanSummary" class="helper-text">No count session loaded.</p>
           <div id="scanFeed" class="scan-feed"></div>
+          <h3>Pending New Items</h3>
+          <p class="helper-text">Items saved from the phone appear here. Edit them, create their QR item, then print one or all newly approved labels.</p>
+          <div class="toolbar">
+            <button id="refreshPendingItems" class="secondary" type="button">Refresh pending</button>
+            <button id="printAllPendingItems" type="button">Print All Pending QR</button>
+          </div>
+          <div id="pendingItems" class="pending-items"></div>
         </div>
         <aside class="panel">
           <h3>Phone Connection</h3>

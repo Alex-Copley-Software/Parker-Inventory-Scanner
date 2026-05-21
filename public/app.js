@@ -7,6 +7,7 @@ const state = {
   activeSession: null,
   reviewSession: null,
   scans: [],
+  pendingItems: [],
   skippedLabelSlots: new Set()
 };
 
@@ -98,9 +99,20 @@ async function loadItems() {
   renderItems();
 }
 
+function categoryOptions(selectedId) {
+  return state.categories.map((category) => `
+    <option value="${category.id}" ${Number(selectedId) === Number(category.id) ? 'selected' : ''}>${category.name}</option>
+  `).join('');
+}
+
 async function loadExpectedItems() {
   state.expectedItems = await api('/api/expected-inventory');
   renderExpectedItems();
+}
+
+async function loadPendingItems() {
+  state.pendingItems = await api('/api/pending-items');
+  renderPendingItems();
 }
 
 function renderItems() {
@@ -130,6 +142,72 @@ function renderExpectedItems() {
       <td>${item.balance}</td>
     </tr>
   `).join('') || '<tr><td colspan="4">No expected inventory imported.</td></tr>';
+}
+
+function renderPendingItems() {
+  const container = $('#pendingItems');
+  if (!container) return;
+  container.innerHTML = state.pendingItems.map((item) => `
+    <div class="pending-item ${item.status === 'approved' ? 'approved' : ''}" data-id="${item.id}">
+      <div class="pending-grid">
+        <label>Category<select data-field="category_id">${categoryOptions(item.category_id)}</select></label>
+        <label>Tag #<input data-field="tag_number" value="${item.tag_number}"></label>
+        <label>Item Number<input data-field="item_number" value="${item.item_number || ''}"></label>
+        <label>Description<textarea data-field="description" rows="2">${item.description || ''}</textarea></label>
+      </div>
+      <div class="form-actions pending-actions">
+        <button class="secondary" data-action="save-pending" type="button">Save edits</button>
+        <button data-action="approve-pending" type="button">${item.status === 'approved' ? 'Update QR' : 'Create QR'}</button>
+        <button class="secondary" data-action="print-pending" type="button">Print QR</button>
+        <button class="danger" data-action="delete-pending" type="button">Remove</button>
+      </div>
+      <span class="status ${item.status === 'approved' ? '' : 'warn'}">${item.status === 'approved' ? 'QR item created' : 'Waiting on PC'}</span>
+    </div>
+  `).join('') || '<p>No pending new items.</p>';
+}
+
+function pendingPayload(card) {
+  return {
+    category_id: Number(card.querySelector('[data-field="category_id"]').value),
+    tag_number: card.querySelector('[data-field="tag_number"]').value.trim().toUpperCase(),
+    item_number: card.querySelector('[data-field="item_number"]').value.trim(),
+    description: card.querySelector('[data-field="description"]').value.trim()
+  };
+}
+
+async function savePendingItem(card) {
+  const id = card.dataset.id;
+  await api(`/api/pending-items/${id}`, { method: 'PUT', body: pendingPayload(card) });
+  toast('Pending item saved.');
+  await loadPendingItems();
+}
+
+async function approvePendingItem(card) {
+  await savePendingItem(card);
+  const result = await api(`/api/pending-items/${card.dataset.id}/approve`, { method: 'POST' });
+  await loadItems();
+  await loadPendingItems();
+  return result.item;
+}
+
+async function printPendingItem(card) {
+  const item = await approvePendingItem(card);
+  const singlePrintSheet = $('#singlePrintSheet');
+  singlePrintSheet.innerHTML = labelHtml([item], new Set());
+  document.body.classList.add('printing-single');
+  setTimeout(() => window.print(), 150);
+}
+
+async function printAllPendingItems() {
+  for (const card of $$('#pendingItems .pending-item')) {
+    await savePendingItem(card);
+  }
+  const result = await api('/api/pending-items/approve-all', { method: 'POST' });
+  await loadItems();
+  await loadPendingItems();
+  if (!result.approved.length) return toast('No pending items to print.', 'warn');
+  renderImportedLabels(result.approved);
+  setTimeout(() => window.print(), 150);
 }
 
 function formPayload() {
@@ -412,6 +490,7 @@ function connectSocket() {
       await loadItems();
       await loadExpectedItems();
     }
+    if (message.type === 'pending:changed') await loadPendingItems();
     if (message.type === 'sessions:changed') await loadSession();
     if (message.type === 'review:changed') await loadReview();
   };
@@ -501,6 +580,25 @@ function bindUi() {
     state.skippedLabelSlots.clear();
     safeAsync(renderLabels);
   });
+  $('#refreshPendingItems').addEventListener('click', () => safeAsync(loadPendingItems));
+  $('#printAllPendingItems').addEventListener('click', () => safeAsync(printAllPendingItems));
+  $('#pendingItems').addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-action]');
+    if (!button) return;
+    const card = button.closest('.pending-item');
+    if (!card) return;
+    const actions = {
+      'save-pending': () => savePendingItem(card),
+      'approve-pending': () => approvePendingItem(card),
+      'print-pending': () => printPendingItem(card),
+      'delete-pending': async () => {
+        await api(`/api/pending-items/${card.dataset.id}`, { method: 'DELETE' });
+        toast('Pending item removed.');
+        await loadPendingItems();
+      }
+    };
+    safeAsync(actions[button.dataset.action]);
+  });
   $('#startSession').addEventListener('click', () => safeAsync(startSession));
   $('#pauseSession').addEventListener('click', () => safeAsync(() => setSessionStatus('paused')));
   $('#resumeSession').addEventListener('click', () => safeAsync(() => setSessionStatus('active')));
@@ -518,6 +616,7 @@ async function init() {
   await suggestTag();
   await loadItems();
   await loadExpectedItems();
+  await loadPendingItems();
   await loadSession();
   connectSocket();
   setInterval(() => safeAsync(async () => {

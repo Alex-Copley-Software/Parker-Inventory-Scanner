@@ -74,7 +74,10 @@ function lanIp() {
 }
 
 function nextTagNumber() {
-  const found = rows("SELECT tag_number FROM items WHERE tag_number LIKE 'W-%'");
+  const found = [
+    ...rows("SELECT tag_number FROM items WHERE tag_number LIKE 'W-%'"),
+    ...rows("SELECT tag_number FROM pending_new_items WHERE tag_number LIKE 'W-%'")
+  ];
   const max = found.reduce((highest, item) => {
     const match = item.tag_number.match(/^W-(\d+)$/);
     return match ? Math.max(highest, Number(match[1])) : highest;
@@ -222,6 +225,32 @@ function itemGroupKey(item) {
   return [item.category, item.item_number || '', item.description || ''].join('\u001F');
 }
 
+function pendingItemSelect(where = '') {
+  return `
+    SELECT p.id, p.tag_number, p.category_id, c.name AS category, p.item_number,
+           p.description, p.status, p.item_id, p.created_at, p.updated_at
+    FROM pending_new_items p
+    JOIN categories c ON c.id = p.category_id
+    ${where}
+    ORDER BY p.created_at DESC, p.id DESC
+  `;
+}
+
+function upsertRegistryItem({ tag_number, category_id, item_number, description }) {
+  const info = db.prepare(`
+    INSERT INTO items (tag_number, category_id, item_number, description, balance)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(tag_number) DO UPDATE SET
+      category_id = excluded.category_id,
+      item_number = excluded.item_number,
+      description = excluded.description,
+      balance = excluded.balance,
+      retired_at = NULL,
+      updated_at = CURRENT_TIMESTAMP
+  `).run(tag_number.trim(), Number(category_id), String(item_number || '').trim(), String(description || '').trim(), 1);
+  return row(itemSelect('WHERE i.tag_number = ?'), [tag_number.trim()]) || row(itemSelect('WHERE i.id = ?'), [info.lastInsertRowid]);
+}
+
 app.get('/api/categories', (req, res) => {
   res.json(rows('SELECT id, name, prefix FROM categories ORDER BY id'));
 });
@@ -283,11 +312,8 @@ app.post('/api/items', (req, res) => {
     return res.status(400).json({ error: 'Tag # and category are required.' });
   }
   try {
-    const info = db.prepare(`
-      INSERT INTO items (tag_number, category_id, item_number, description, balance)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(tag_number.trim(), Number(category_id), String(item_number || '').trim(), String(description || '').trim(), 1);
-    res.status(201).json(row(itemSelect('WHERE i.id = ?'), [info.lastInsertRowid]));
+    const item = upsertRegistryItem({ tag_number, category_id, item_number, description });
+    res.status(201).json(item);
     broadcast('items:changed', {});
   } catch (error) {
     res.status(409).json({ error: error.message });
@@ -303,6 +329,85 @@ app.put('/api/items/:id', (req, res) => {
   `).run(tag_number.trim(), Number(category_id), String(item_number || '').trim(), String(description || '').trim(), 1, Number(req.params.id));
   broadcast('items:changed', {});
   res.json(row(itemSelect('WHERE i.id = ?'), [Number(req.params.id)]));
+});
+
+app.get('/api/pending-items', (req, res) => {
+  res.json(rows(pendingItemSelect()));
+});
+
+app.post('/api/pending-items', (req, res) => {
+  const { tag_number, category_id, item_number, description } = req.body;
+  if (!tag_number || !category_id) {
+    return res.status(400).json({ error: 'Tag # and category are required.' });
+  }
+  try {
+    const info = db.prepare(`
+      INSERT INTO pending_new_items (tag_number, category_id, item_number, description)
+      VALUES (?, ?, ?, ?)
+    `).run(tag_number.trim(), Number(category_id), String(item_number || '').trim(), String(description || '').trim());
+    const pendingItem = row(pendingItemSelect('WHERE p.id = ?'), [info.lastInsertRowid]);
+    broadcast('pending:changed', pendingItem);
+    res.status(201).json(pendingItem);
+  } catch (error) {
+    res.status(409).json({ error: error.message });
+  }
+});
+
+app.put('/api/pending-items/:id', (req, res) => {
+  const { tag_number, category_id, item_number, description } = req.body;
+  db.prepare(`
+    UPDATE pending_new_items
+    SET tag_number = ?, category_id = ?, item_number = ?, description = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(tag_number.trim(), Number(category_id), String(item_number || '').trim(), String(description || '').trim(), Number(req.params.id));
+  const pendingItem = row(pendingItemSelect('WHERE p.id = ?'), [Number(req.params.id)]);
+  broadcast('pending:changed', pendingItem);
+  res.json(pendingItem);
+});
+
+app.post('/api/pending-items/:id/approve', (req, res) => {
+  const pendingItem = row('SELECT * FROM pending_new_items WHERE id = ?', [Number(req.params.id)]);
+  if (!pendingItem) return res.status(404).json({ error: 'Pending item not found.' });
+  try {
+    const item = upsertRegistryItem(pendingItem);
+    db.prepare(`
+      UPDATE pending_new_items
+      SET status = 'approved', item_id = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(item.id, pendingItem.id);
+    const updated = row(pendingItemSelect('WHERE p.id = ?'), [pendingItem.id]);
+    broadcast('items:changed', {});
+    broadcast('pending:changed', updated);
+    res.json({ pending: updated, item });
+  } catch (error) {
+    res.status(409).json({ error: error.message });
+  }
+});
+
+app.post('/api/pending-items/approve-all', (req, res) => {
+  const pendingItems = rows("SELECT * FROM pending_new_items ORDER BY created_at, id");
+  const approved = [];
+  const transaction = db.transaction(() => {
+    for (const pendingItem of pendingItems) {
+      const item = upsertRegistryItem(pendingItem);
+      db.prepare(`
+        UPDATE pending_new_items
+        SET status = 'approved', item_id = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(item.id, pendingItem.id);
+      approved.push(item);
+    }
+  });
+  transaction();
+  broadcast('items:changed', {});
+  broadcast('pending:changed', {});
+  res.json({ approved });
+});
+
+app.delete('/api/pending-items/:id', (req, res) => {
+  db.prepare('DELETE FROM pending_new_items WHERE id = ?').run(Number(req.params.id));
+  broadcast('pending:changed', {});
+  res.json({ ok: true });
 });
 
 app.delete('/api/items/:id', (req, res) => {

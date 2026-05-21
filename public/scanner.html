@@ -28,7 +28,7 @@
         <label>Manual tag entry<input id="manualTag" inputmode="text" autocomplete="off" placeholder="W-001"></label>
         <button type="submit">Log tag</button>
       </form>
-      <button id="toggleNewItem" class="secondary scanner-add-toggle" type="button">Add new item</button>
+      <button id="toggleNewItem" class="secondary scanner-add-toggle" type="button">Save to PC</button>
       <form id="newItemForm" class="scanner-new-item hidden">
         <div class="scanner-form-grid">
           <label>Category<select id="newItemCategory" required></select></label>
@@ -36,9 +36,8 @@
           <label>Item Number<input id="newItemNumber" autocomplete="off"></label>
           <label>Description<textarea id="newItemDescription" rows="2"></textarea></label>
         </div>
-        <label class="check-row"><input id="printNewItem" type="checkbox" checked> Print QR after save</label>
         <div class="form-actions scanner-new-actions">
-          <button type="submit">Save item</button>
+          <button type="submit">Save to PC</button>
           <button id="refreshNewTag" class="secondary" type="button">Next tag</button>
         </div>
       </form>
