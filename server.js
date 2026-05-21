@@ -212,12 +212,16 @@ function activeExpectedInventory() {
 
 function actualCountGroups(sessionId) {
   return rows(`
-    SELECT c.name AS category, i.item_number, i.description, COUNT(*) AS actual_count
-    FROM scan_events s
-    JOIN items i ON i.id = s.item_id
-    JOIN categories c ON c.id = i.category_id
-    WHERE s.session_id = ?
-    GROUP BY c.name, i.item_number, i.description
+    SELECT category, item_number, description, COUNT(*) AS actual_count, GROUP_CONCAT(tag_number, char(10)) AS tag_numbers
+    FROM (
+      SELECT c.name AS category, i.item_number, i.description, s.tag_number
+      FROM scan_events s
+      JOIN items i ON i.id = s.item_id
+      JOIN categories c ON c.id = i.category_id
+      WHERE s.session_id = ?
+      ORDER BY s.tag_number
+    )
+    GROUP BY category, item_number, description
   `, [sessionId]);
 }
 
@@ -269,7 +273,7 @@ function reviewComparison(sessionId) {
       ...(expected || {}),
       ...actual,
       id: expected?.id || key,
-      tag_number: '',
+      tag_number: actual.tag_numbers || '',
       source: expected ? 'expected' : 'actual',
       expected_count: balance,
       balance,
@@ -283,6 +287,7 @@ function reviewComparison(sessionId) {
     return {
       ...expected,
       tag_number: '',
+      tag_numbers: '',
       expected_count: expected.balance,
       actual_count: actualCount,
       missing: Math.max(expected.balance - actualCount, 0),
@@ -729,7 +734,9 @@ app.get('/api/sessions/:id/export', async (req, res) => {
   exportRows
     .sort((a, b) => a.category.localeCompare(b.category) || a.item_number.localeCompare(b.item_number, undefined, { numeric: true }))
     .forEach((item) => {
-      sheet.addRow(['', item.category, item.item_number, item.description, item.balance, item.actual_count, item.missing]);
+      const tagCell = item.tag_numbers || item.tag_number || '';
+      const addedRow = sheet.addRow([tagCell, item.category, item.item_number, item.description, item.balance, item.actual_count, item.missing]);
+      addedRow.getCell(1).alignment = { wrapText: true, vertical: 'top' };
     });
   sheet.columns.forEach((column) => {
     let max = 12;

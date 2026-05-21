@@ -1,6 +1,6 @@
 {
   "name": "parker-inventory-scanner",
-  "version": "1.0.24",
+  "version": "1.0.25",
   "description": "Local propane inventory scanner MVP for QR counts and Excel exports.",
   "main": "server.js",
   "scripts": {
