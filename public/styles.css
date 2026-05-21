@@ -566,6 +566,11 @@ td.actions {
   color: var(--red);
 }
 
+.create-missing-tag {
+  width: 100%;
+  margin-top: 6px;
+}
+
 #reader {
   width: 100%;
   height: clamp(280px, 48vh, 520px);
@@ -956,6 +961,11 @@ td.actions {
 
   .mobile-inventory-item em {
     font-size: 14px;
+  }
+
+  .create-missing-tag {
+    min-height: 44px;
+    font-size: 16px;
   }
 
   .scan-confirm {

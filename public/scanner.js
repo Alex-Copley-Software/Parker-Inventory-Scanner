@@ -5,6 +5,7 @@ const pendingKey = 'parker-pending-scans';
 let categories = [];
 let pendingScan = null;
 let audioContext = null;
+let inventoryItems = new Map();
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -107,6 +108,11 @@ function inventoryKey(item) {
   return [item.category || '', item.item_number || '', item.description || ''].join('\u001F');
 }
 
+function categoryIdForName(name) {
+  const category = categories.find((item) => item.name.toLowerCase() === String(name || '').trim().toLowerCase());
+  return category?.id;
+}
+
 function setScannerPanel(panel) {
   const showingInventory = panel === 'inventory';
   $('#scannerLogPanel').classList.toggle('hidden', showingInventory);
@@ -134,18 +140,40 @@ async function loadInventoryReview() {
     if (missingDelta) return missingDelta;
     return String(a.description || '').localeCompare(String(b.description || ''));
   });
+  inventoryItems = new Map(sorted.map((item) => [inventoryKey(item), item]));
   $('#mobileInventory').innerHTML = sorted.map((item) => {
     const missing = Number(item.missing || 0);
     const balance = item.balance ?? item.expected_count ?? 0;
+    const key = inventoryKey(item);
     return `
       <div class="mobile-inventory-item ${missing > 0 ? 'missing' : ''}">
         <strong>${item.description || 'No description'}</strong>
         <span>${item.category || ''} | ${item.item_number || ''}</span>
         <span>Actual ${item.actual_count || 0} / Balance ${balance}</span>
         <em>${missing > 0 ? `${missing} missing` : 'Complete'}</em>
+        ${missing > 0 ? `<button class="secondary create-missing-tag" data-inventory-key="${encodeURIComponent(key)}" type="button">Create tag</button>` : ''}
       </div>
     `;
   }).join('') || '<p>No imported inventory found.</p>';
+}
+
+async function createPendingTagForInventory(key) {
+  const item = inventoryItems.get(key);
+  if (!item) throw new Error('Inventory item is no longer loaded. Refresh inventory and try again.');
+  const categoryId = categoryIdForName(item.category);
+  if (!categoryId) throw new Error(`No category found for ${item.category}.`);
+  const next = await api('/api/items/next-tag');
+  const pendingItem = await api('/api/pending-items', {
+    method: 'POST',
+    body: {
+      tag_number: next.tag_number,
+      category_id: categoryId,
+      item_number: item.item_number || '',
+      description: item.description || ''
+    }
+  });
+  setResult(`${pendingItem.tag_number} added to PC pending QR list.`, '');
+  addHistory(pendingItem.tag_number, `Pending tag created for ${item.description || 'missing item'}`);
 }
 
 async function lookupTag(tag) {
@@ -287,6 +315,17 @@ async function init() {
   $('#stopCamera').addEventListener('click', () => stopCamera().catch(() => {}));
   $('#showLogTab').addEventListener('click', () => setScannerPanel('log'));
   $('#showInventoryTab').addEventListener('click', () => setScannerPanel('inventory'));
+  $('#mobileInventory').addEventListener('click', (event) => {
+    const button = event.target.closest('.create-missing-tag');
+    if (!button) return;
+    button.disabled = true;
+    createPendingTagForInventory(decodeURIComponent(button.dataset.inventoryKey || ''))
+      .then(() => loadInventoryReview())
+      .catch((error) => {
+        button.disabled = false;
+        setResult(error.message, 'bad');
+      });
+  });
   $('#confirmScan').addEventListener('click', async () => {
     if (!pendingScan) return;
     const tag = pendingScan.tag_number;
