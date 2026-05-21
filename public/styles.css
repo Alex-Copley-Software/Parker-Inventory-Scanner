@@ -571,6 +571,12 @@ td.actions {
   margin-top: 6px;
 }
 
+.create-missing-tag.created {
+  background: var(--teal);
+  color: white;
+  border-color: var(--teal);
+}
+
 #reader {
   width: 100%;
   height: clamp(280px, 48vh, 520px);

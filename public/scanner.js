@@ -6,6 +6,7 @@ let categories = [];
 let pendingScan = null;
 let audioContext = null;
 let inventoryItems = new Map();
+const createdInventoryTags = new Map();
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -145,35 +146,41 @@ async function loadInventoryReview() {
     const missing = Number(item.missing || 0);
     const balance = item.balance ?? item.expected_count ?? 0;
     const key = inventoryKey(item);
+    const createdCount = createdInventoryTags.get(key) || 0;
     return `
       <div class="mobile-inventory-item ${missing > 0 ? 'missing' : ''}">
         <strong>${item.description || 'No description'}</strong>
         <span>${item.category || ''} | ${item.item_number || ''}</span>
         <span>Actual ${item.actual_count || 0} / Balance ${balance}</span>
         <em>${missing > 0 ? `${missing} missing` : 'Complete'}</em>
-        ${missing > 0 ? `<button class="secondary create-missing-tag" data-inventory-key="${encodeURIComponent(key)}" type="button">Create tag</button>` : ''}
+        ${missing > 0 ? `<button class="${createdCount ? 'create-missing-tag created' : 'secondary create-missing-tag'}" data-inventory-key="${encodeURIComponent(key)}" data-missing="${missing}" type="button">${createdCount ? `Created ${createdCount}` : 'Create tag'}</button>` : ''}
       </div>
     `;
   }).join('') || '<p>No imported inventory found.</p>';
 }
 
-async function createPendingTagForInventory(key) {
+async function createPendingTagsForInventory(key, quantity) {
   const item = inventoryItems.get(key);
   if (!item) throw new Error('Inventory item is no longer loaded. Refresh inventory and try again.');
   const categoryId = categoryIdForName(item.category);
   if (!categoryId) throw new Error(`No category found for ${item.category}.`);
-  const next = await api('/api/items/next-tag');
-  const pendingItem = await api('/api/pending-items', {
-    method: 'POST',
-    body: {
-      tag_number: next.tag_number,
-      category_id: categoryId,
-      item_number: item.item_number || '',
-      description: item.description || ''
-    }
-  });
-  setResult(`${pendingItem.tag_number} added to PC pending QR list.`, '');
-  addHistory(pendingItem.tag_number, `Pending tag created for ${item.description || 'missing item'}`);
+  const createdTags = [];
+  for (let index = 0; index < quantity; index += 1) {
+    const next = await api('/api/items/next-tag');
+    const pendingItem = await api('/api/pending-items', {
+      method: 'POST',
+      body: {
+        tag_number: next.tag_number,
+        category_id: categoryId,
+        item_number: item.item_number || '',
+        description: item.description || ''
+      }
+    });
+    createdTags.push(pendingItem.tag_number);
+  }
+  createdInventoryTags.set(key, (createdInventoryTags.get(key) || 0) + createdTags.length);
+  setResult(`${createdTags.join(', ')} added to PC pending QR list.`, '');
+  addHistory(createdTags.join(', '), `Pending tags created for ${item.description || 'missing item'}`);
 }
 
 async function lookupTag(tag) {
@@ -318,11 +325,26 @@ async function init() {
   $('#mobileInventory').addEventListener('click', (event) => {
     const button = event.target.closest('.create-missing-tag');
     if (!button) return;
+    const missing = Number(button.dataset.missing || 1);
+    const requested = window.prompt('How many QR tags do you want to create?', String(Math.max(missing, 1)));
+    if (requested === null) return;
+    const quantity = Number.parseInt(requested, 10);
+    if (!Number.isFinite(quantity) || quantity < 1) {
+      setResult('Enter a quantity of 1 or more.', 'warn');
+      return;
+    }
     button.disabled = true;
-    createPendingTagForInventory(decodeURIComponent(button.dataset.inventoryKey || ''))
-      .then(() => loadInventoryReview())
+    button.textContent = 'Creating...';
+    createPendingTagsForInventory(decodeURIComponent(button.dataset.inventoryKey || ''), quantity)
+      .then(() => {
+        button.classList.remove('secondary');
+        button.classList.add('created');
+        button.textContent = `Created ${quantity}`;
+        return loadInventoryReview();
+      })
       .catch((error) => {
         button.disabled = false;
+        button.textContent = 'Create tag';
         setResult(error.message, 'bad');
       });
   });
