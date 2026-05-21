@@ -403,12 +403,15 @@ async function setSessionStatus(status) {
   const updatedSession = await api(`/api/sessions/${state.activeSession.id}`, { method: 'PATCH', body: { status } });
   state.activeSession = updatedSession;
   state.reviewSession = updatedSession;
-  await loadSession();
   if (status === 'complete') {
+    state.activeSession = null;
+    await loadScans(updatedSession);
     await loadReview();
     showTab('review');
     toast('Session complete. Use Download Excel to open the count file.');
+    return;
   }
+  await loadSession();
 }
 
 async function reviewableSession() {

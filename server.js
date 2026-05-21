@@ -593,6 +593,12 @@ app.post('/api/sessions', (req, res) => {
   const now = new Date();
   const month = Number(req.body.month || now.getMonth() + 1);
   const year = Number(req.body.year || now.getFullYear());
+  db.prepare(`
+    UPDATE count_sessions
+    SET status = 'complete',
+        completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP)
+    WHERE status IN ('active', 'paused')
+  `).run();
   const info = db.prepare('INSERT INTO count_sessions (month, year) VALUES (?, ?)').run(month, year);
   const session = row('SELECT * FROM count_sessions WHERE id = ?', [info.lastInsertRowid]);
   broadcast('sessions:changed', session);
@@ -600,7 +606,8 @@ app.post('/api/sessions', (req, res) => {
 });
 
 app.get('/api/sessions/active', (req, res) => {
-  res.json(row("SELECT * FROM count_sessions WHERE status IN ('active', 'paused') ORDER BY id DESC LIMIT 1") || null);
+  const latest = row('SELECT * FROM count_sessions ORDER BY id DESC LIMIT 1');
+  res.json(latest && ['active', 'paused'].includes(latest.status) ? latest : null);
 });
 
 app.get('/api/sessions/latest', (req, res) => {
