@@ -3,6 +3,8 @@ let scanner = null;
 let lastScan = { tag: '', at: 0 };
 const pendingKey = 'parker-pending-scans';
 let categories = [];
+let pendingScan = null;
+let audioContext = null;
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -55,8 +57,29 @@ function showScanSuccess(tag, result) {
     addHistory(tag, 'Already counted');
   } else {
     const scan = result.scan;
+    playSuccessSound();
     setResult(`${scan.description} synced to the active count.`, '');
     addHistory(tag, `${scan.category} synced`);
+  }
+}
+
+function playSuccessSound() {
+  try {
+    audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
+    oscillator.frequency.setValueAtTime(1175, audioContext.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.28, audioContext.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.18);
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + 0.2);
+  } catch (error) {
+    // Audio can be blocked by browser settings; scanning should continue silently.
   }
 }
 
@@ -78,6 +101,26 @@ function addHistory(tag, message) {
   row.className = 'feed-item';
   row.innerHTML = `<strong>${tag}</strong><span>${message}</span>`;
   $('#history').prepend(row);
+}
+
+async function lookupTag(tag) {
+  return api(`/api/items/by-tag/${encodeURIComponent(tag)}`);
+}
+
+function showConfirmScan(item) {
+  pendingScan = item;
+  $('#scanConfirmTitle').textContent = item.tag_number;
+  $('#scanConfirmDetails').innerHTML = `
+    <strong>${item.description || 'No description'}</strong>
+    <span>${item.category || ''}</span>
+    <span>Item Number: ${item.item_number || ''}</span>
+  `;
+  $('#scanConfirm').classList.remove('hidden');
+}
+
+function closeConfirmScan() {
+  pendingScan = null;
+  $('#scanConfirm').classList.add('hidden');
 }
 
 async function loadCategories() {
@@ -138,13 +181,19 @@ async function submitScan(tag) {
   showScanSuccess(tag, await postScan(tag));
 }
 
+async function confirmScannedTag(tag) {
+  if (!activeSession) await loadSession();
+  if (!activeSession) throw new Error('No active count session.');
+  showConfirmScan(await lookupTag(tag));
+}
+
 async function handleScan(rawText) {
   const tag = String(rawText || '').trim();
   const now = Date.now();
-  if (!tag || (tag === lastScan.tag && now - lastScan.at < 2200)) return;
+  if (!tag || pendingScan || (tag === lastScan.tag && now - lastScan.at < 2200)) return;
   lastScan = { tag, at: now };
   try {
-    await submitScan(tag);
+    await confirmScannedTag(tag);
   } catch (error) {
     if (shouldQueueScanError(error)) {
       const queue = pending();
@@ -189,6 +238,20 @@ async function init() {
   await flushPending();
   $('#startCamera').addEventListener('click', () => startCamera().catch((error) => setResult(error.message, 'bad')));
   $('#stopCamera').addEventListener('click', () => stopCamera().catch(() => {}));
+  $('#confirmScan').addEventListener('click', async () => {
+    if (!pendingScan) return;
+    const tag = pendingScan.tag_number;
+    closeConfirmScan();
+    await submitScan(tag).catch((error) => {
+      setResult(error.message, shouldQueueScanError(error) ? 'warn' : 'bad');
+      addHistory(tag, error.message);
+    });
+  });
+  $('#cancelScan').addEventListener('click', () => {
+    const tag = pendingScan?.tag_number || 'Scan';
+    closeConfirmScan();
+    setResult(`${tag} ignored.`, 'warn');
+  });
   $('#startPhoneSession').addEventListener('click', async () => {
     const now = new Date();
     activeSession = await api('/api/sessions', {

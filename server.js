@@ -378,6 +378,12 @@ app.get('/api/items/next-tag', (req, res) => {
   res.json({ tag_number: nextTagNumber() });
 });
 
+app.get('/api/items/by-tag/:tag', (req, res) => {
+  const item = row(itemSelect('WHERE i.tag_number = ?'), [String(req.params.tag || '').trim()]);
+  if (!item) return res.status(404).json({ error: `No QR tag found for ${req.params.tag}.` });
+  res.json(item);
+});
+
 app.post('/api/items', (req, res) => {
   const { tag_number, category_id, item_number, description } = req.body;
   if (!tag_number || !category_id) {

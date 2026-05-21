@@ -466,6 +466,61 @@ td.actions {
   max-height: calc(28vh - 50px);
 }
 
+.scan-confirm {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(4, 18, 15, 0.78);
+}
+
+.scan-confirm-card {
+  width: min(100%, 520px);
+  border-radius: 10px;
+  padding: 22px;
+  background: white;
+  color: var(--ink);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
+}
+
+.scan-confirm-kicker {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 13px;
+}
+
+.scan-confirm-card h2 {
+  font-size: 38px;
+  margin: 0 0 12px;
+}
+
+.scan-confirm-details {
+  display: grid;
+  gap: 6px;
+  font-size: 18px;
+}
+
+.scan-confirm-details strong,
+.scan-confirm-details span {
+  overflow-wrap: anywhere;
+}
+
+.scan-confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.scan-confirm-actions button {
+  min-height: 64px;
+  font-size: 20px;
+}
+
 .label-sheet {
   display: grid;
   grid-template-columns: repeat(3, 2.625in);
@@ -654,6 +709,23 @@ td.actions {
   .scanner-body .feed-item {
     padding: 8px;
     font-size: 13px;
+  }
+
+  .scan-confirm {
+    align-items: end;
+    padding: 10px;
+  }
+
+  .scan-confirm-card {
+    padding: 18px;
+  }
+
+  .scan-confirm-card h2 {
+    font-size: 34px;
+  }
+
+  .scan-confirm-actions {
+    grid-template-columns: 1fr;
   }
 }
 

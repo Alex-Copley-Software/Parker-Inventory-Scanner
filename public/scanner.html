@@ -48,6 +48,17 @@
       <div id="history" class="history"></div>
     </section>
   </main>
+  <div id="scanConfirm" class="scan-confirm hidden" role="dialog" aria-modal="true" aria-labelledby="scanConfirmTitle">
+    <div class="scan-confirm-card">
+      <p class="scan-confirm-kicker">Confirm scan</p>
+      <h2 id="scanConfirmTitle"></h2>
+      <div id="scanConfirmDetails" class="scan-confirm-details"></div>
+      <div class="scan-confirm-actions">
+        <button id="confirmScan" type="button">Okay</button>
+        <button id="cancelScan" class="secondary" type="button">Back</button>
+      </div>
+    </div>
+  </div>
   <div id="singlePrintSheet" class="single-print-sheet"></div>
 
   <script src="/vendor/html5-qrcode/html5-qrcode.min.js"></script>

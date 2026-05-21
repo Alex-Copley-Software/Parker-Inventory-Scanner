@@ -450,11 +450,13 @@ function reviewCard(item, missing = false) {
   const expected = item.expected_count ?? item.balance ?? 1;
   const actual = item.actual_count ?? (missing ? 0 : 1);
   const title = item.tag_number ? `${item.tag_number} - ${item.description || 'No description'}` : (item.description || 'No description');
+  const missingCount = Math.max(expected - actual, 0);
   return `
     <div class="review-card ${missing ? 'missing' : ''}">
       <strong>${title}</strong>
       <div>${item.category} | ${item.item_number}</div>
       <div>Actual Count: ${actual} / Balance: ${expected}</div>
+      ${missing ? `<span class="status bad">${missingCount} missing</span>` : '<span class="status">Confirmed present</span>'}
       ${missing && item.source !== 'expected' ? `
         <select id="override-status-${item.id}">
           <option value="missing">Confirmed missing</option>
@@ -463,7 +465,7 @@ function reviewCard(item, missing = false) {
         </select>
         <textarea id="override-notes-${item.id}" rows="2" placeholder="Notes"></textarea>
         <button onclick="saveOverride(${item.id})">Save</button>
-      ` : '<span class="status">Confirmed present</span>'}
+      ` : ''}
     </div>
   `;
 }
