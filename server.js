@@ -653,10 +653,10 @@ app.patch('/api/sessions/:id', (req, res) => {
 });
 
 function recordScan(sessionId, tagNumber) {
-  const item = row(itemSelect('WHERE i.tag_number = ? AND i.retired_at IS NULL'), [tagNumber]);
+  const item = row(itemSelect('WHERE i.tag_number = ?'), [tagNumber]);
   const session = row("SELECT * FROM count_sessions WHERE id = ? AND status IN ('active', 'paused')", [sessionId]);
   if (!session) return { error: 'No active count session found.', status: 400 };
-  if (!item) return { error: `No active item found for ${tagNumber}.`, status: 404 };
+  if (!item) return { error: `No QR tag found for ${tagNumber}.`, status: 404 };
   try {
     db.prepare('INSERT INTO scan_events (session_id, item_id, tag_number) VALUES (?, ?, ?)').run(sessionId, item.id, tagNumber);
     const scan = row(`

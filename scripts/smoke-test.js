@@ -23,6 +23,15 @@ db.prepare('INSERT INTO scan_events (session_id, item_id, tag_number) VALUES (?,
 const scans = rows('SELECT * FROM scan_events WHERE session_id = ?', [session.lastInsertRowid]);
 assert(scans.length === 1, 'scan should record');
 
+db.prepare('UPDATE items SET retired_at = CURRENT_TIMESTAMP WHERE id = ?').run(item.lastInsertRowid);
+const retiredItem = db.prepare(`
+  SELECT i.id
+  FROM items i
+  JOIN categories c ON c.id = i.category_id
+  WHERE i.tag_number = ?
+`).get('__SMOKE__T-001');
+assert(retiredItem, 'retired QR tag should remain available for scan lookup');
+
 db.prepare('DELETE FROM scan_events WHERE session_id = ?').run(session.lastInsertRowid);
 db.prepare('DELETE FROM count_sessions WHERE id = ?').run(session.lastInsertRowid);
 db.prepare('DELETE FROM items WHERE id = ?').run(item.lastInsertRowid);
