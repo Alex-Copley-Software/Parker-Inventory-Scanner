@@ -237,6 +237,17 @@ async function renderLabels() {
   renderLabelSlotGrid();
 }
 
+function renderImportedLabels(items) {
+  const labelCategory = $('#labelCategory');
+  const labelSheet = $('#labelSheet');
+  if (labelCategory) labelCategory.value = '';
+  state.labelItems = items || [];
+  if (labelSheet) labelSheet.innerHTML = labelHtml(state.labelItems);
+  renderLabelSlotGrid();
+  $$('.tab-page').forEach((page) => page.classList.toggle('hidden', page.id !== 'labels'));
+  $$('.tabs button').forEach((button) => button.classList.toggle('active', button.dataset.tab === 'labels'));
+}
+
 async function printAllLabels() {
   const labelCategory = $('#labelCategory');
   if (labelCategory) labelCategory.value = '';
@@ -467,6 +478,15 @@ function bindUi() {
     const result = await api('/api/items/import', { method: 'POST', body: form });
     toast(`Imported ${result.expectedImported || result.imported} expected rows${result.skipped ? `, skipped ${result.skipped}` : ''}.`);
     await loadExpectedItems();
+  });
+  $('#tagImportForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = new FormData();
+    form.append('file', $('#tagCsvFile').files[0]);
+    const result = await api('/api/items/import-tags', { method: 'POST', body: form });
+    toast(`Imported ${result.imported} QR tag${result.imported === 1 ? '' : 's'}${result.skipped ? `, skipped ${result.skipped}` : ''}.`);
+    await loadItems();
+    renderImportedLabels(result.items || []);
   });
   $('#retireAllItems').addEventListener('click', () => safeAsync(retireAllItems));
   $('#labelSlotGrid').addEventListener('click', (event) => {

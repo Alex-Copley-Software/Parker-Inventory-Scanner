@@ -176,6 +176,27 @@ function inventoryImportRows(records) {
   });
 }
 
+function taggedInventoryImportRows(records) {
+  if (!records.length) return [];
+  const headers = records[0].map(normalizeHeader);
+  const headerIndex = new Map(headers.map((header, index) => [header, index]));
+  const hasRecognizedHeaders = ['tag count', 'tag number', 'tag', 'category name', 'category', 'item number', 'description']
+    .some((header) => headerIndex.has(header));
+  const dataRows = hasRecognizedHeaders ? records.slice(1) : records;
+
+  return dataRows.flatMap((record) => {
+    const tagCell = csvValue(record, headerIndex, ['tag count', 'tag number', 'tag'], 0);
+    const category = csvValue(record, headerIndex, ['category name', 'category'], 1);
+    const itemNumber = csvValue(record, headerIndex, ['item number', 'item'], 2);
+    const description = csvValue(record, headerIndex, ['description', 'desc'], 3);
+    return tagCell
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+      .map((tag) => ({ tag, category, itemNumber, description }));
+  });
+}
+
 function activeExpectedInventory() {
   return rows(`
     SELECT e.id, c.name AS category, e.item_number, e.description, e.balance
@@ -334,6 +355,50 @@ app.post('/api/items/import', upload.single('file'), (req, res) => {
   transaction(parseCsv(req.file.buffer.toString('utf8')));
   broadcast('items:changed', {});
   res.json({ imported, skipped, expectedImported, taggedImported: 0 });
+});
+
+app.post('/api/items/import-tags', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'CSV file is required.' });
+  const categoryMap = new Map(rows('SELECT id, name FROM categories').map((c) => [c.name.toLowerCase(), c.id]));
+  const ensureCategory = (name) => {
+    const key = String(name || '').trim().toLowerCase();
+    if (!key) return null;
+    if (categoryMap.has(key)) return categoryMap.get(key);
+    const cleanName = String(name).trim();
+    const info = db.prepare('INSERT INTO categories (name, prefix) VALUES (?, ?)').run(cleanName, prefixFromName(cleanName));
+    categoryMap.set(key, info.lastInsertRowid);
+    return info.lastInsertRowid;
+  };
+  const insert = db.prepare(`
+    INSERT INTO items (tag_number, category_id, item_number, description, balance)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(tag_number) DO UPDATE SET
+      category_id = excluded.category_id,
+      item_number = excluded.item_number,
+      description = excluded.description,
+      balance = excluded.balance,
+      retired_at = NULL,
+      updated_at = CURRENT_TIMESTAMP
+  `);
+  const importedTags = [];
+  let skipped = 0;
+  const transaction = db.transaction((records) => {
+    for (const item of taggedInventoryImportRows(records)) {
+      const categoryId = ensureCategory(item.category);
+      if (!item.tag || !categoryId) {
+        skipped += 1;
+        continue;
+      }
+      insert.run(item.tag, categoryId, item.itemNumber, item.description, 1);
+      importedTags.push(item.tag);
+    }
+  });
+  transaction(parseCsv(req.file.buffer.toString('utf8')));
+  const importedItems = importedTags.length
+    ? rows(`${itemSelect(`WHERE i.tag_number IN (${importedTags.map(() => '?').join(',')}) AND i.retired_at IS NULL`)}`, importedTags)
+    : [];
+  broadcast('items:changed', {});
+  res.json({ imported: importedTags.length, skipped, tags: importedTags, items: importedItems });
 });
 
 app.get('/api/qr/:tag', async (req, res) => {
