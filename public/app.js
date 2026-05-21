@@ -451,13 +451,14 @@ function reviewCard(item, missing = false) {
   const actual = item.actual_count ?? (missing ? 0 : 1);
   const title = item.tag_number ? `${item.tag_number} - ${item.description || 'No description'}` : (item.description || 'No description');
   const missingCount = Math.max(expected - actual, 0);
+  const isMissing = missingCount > 0;
   return `
-    <div class="review-card ${missing ? 'missing' : ''}">
+    <div class="review-card ${isMissing ? 'missing' : ''}">
       <strong>${title}</strong>
       <div>${item.category} | ${item.item_number}</div>
       <div>Actual Count: ${actual} / Balance: ${expected}</div>
-      ${missing ? `<span class="status bad">${missingCount} missing</span>` : '<span class="status">Confirmed present</span>'}
-      ${missing && item.source !== 'expected' ? `
+      ${isMissing ? `<span class="status bad">${missingCount} missing</span>` : '<span class="status">Confirmed present</span>'}
+      ${isMissing && item.source !== 'expected' ? `
         <select id="override-status-${item.id}">
           <option value="missing">Confirmed missing</option>
           <option value="found">Found - tag damaged</option>

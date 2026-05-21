@@ -57,7 +57,6 @@ function showScanSuccess(tag, result) {
     addHistory(tag, 'Already counted');
   } else {
     const scan = result.scan;
-    playSuccessSound();
     setResult(`${scan.description} synced to the active count.`, '');
     addHistory(tag, `${scan.category} synced`);
   }
@@ -109,6 +108,7 @@ async function lookupTag(tag) {
 
 function showConfirmScan(item) {
   pendingScan = item;
+  playSuccessSound();
   $('#scanConfirmTitle').textContent = item.tag_number;
   $('#scanConfirmDetails').innerHTML = `
     <strong>${item.description || 'No description'}</strong>
