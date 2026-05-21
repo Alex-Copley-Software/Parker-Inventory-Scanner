@@ -67,11 +67,11 @@
           <h3>Bulk CSV Import</h3>
           <form id="importForm">
             <input id="csvFile" type="file" accept=".csv" required>
-            <p>Columns: Tag Count, Category Name, Item Number, Description, Balance. Blank tags import as BLANK-###.</p>
+            <p>Columns: Category Name, Item Number, Description, Balance. This CSV is expected inventory only; it does not create printable QR tags.</p>
             <button type="submit">Import CSV</button>
           </form>
-          <button id="retireAllItems" class="danger retire-all-button" type="button">Retire All Items</button>
-          <p class="helper-text">Use Retire All before importing a fresh inventory CSV when you want the upload to become the current expected inventory.</p>
+          <button id="retireAllItems" class="danger retire-all-button" type="button">Clear Expected Inventory</button>
+          <p class="helper-text">Clear expected inventory before importing a fresh comparison CSV. QR tags are managed separately in the registry.</p>
         </aside>
       </div>
     </section>
@@ -135,6 +135,9 @@
           <div class="label-print-actions label-print-actions-top">
             <button id="printAllLabelsTop" type="button">Print All QR Labels</button>
           </div>
+          <h3>Skip Used Label Slots</h3>
+          <div id="labelSlotGrid" class="label-slot-grid"></div>
+          <button id="clearLabelSlots" class="secondary" type="button">Clear skipped slots</button>
           <div class="toolbar">
             <select id="labelCategory"></select>
             <button id="refreshLabels" class="secondary" type="button">Refresh Labels</button>

@@ -5,7 +5,8 @@ const state = {
   editingId: null,
   activeSession: null,
   reviewSession: null,
-  scans: []
+  scans: [],
+  skippedLabelSlots: new Set()
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -149,9 +150,9 @@ window.retireItem = async (id) => {
 };
 
 async function retireAllItems() {
-  if (!confirm('Retire every current item from future counts? Import your fresh CSV after this.')) return;
+  if (!confirm('Clear the current expected inventory comparison list? QR tags in the registry will not be retired.')) return;
   const result = await api('/api/items/retire-all', { method: 'POST' });
-  toast(`Retired ${result.retired} item${result.retired === 1 ? '' : 's'}.`);
+  toast(`Cleared ${result.retired} expected item${result.retired === 1 ? '' : 's'}.`);
   await loadItems();
   await renderLabels();
 }
@@ -161,13 +162,14 @@ window.printOne = async (tag) => {
   const item = allItems.find((candidate) => candidate.tag_number === tag);
   const singlePrintSheet = $('#singlePrintSheet');
   if (!item || !singlePrintSheet) return toast('QR label is not available yet. Refresh and try again.', 'bad');
-  singlePrintSheet.innerHTML = labelHtml([item]);
+  singlePrintSheet.innerHTML = labelHtml([item], new Set());
   document.body.classList.add('printing-single');
   setTimeout(() => window.print(), 150);
 };
 
-function labelHtml(items) {
-  return items.filter(Boolean).map((item) => `
+function labelMarkup(item) {
+  if (!item) return '<div class="label"></div>';
+  return `
     <div class="label">
       <img src="${apiUrl(`/api/qr/${encodeURIComponent(item.tag_number)}`)}" alt="">
       <div>
@@ -176,6 +178,32 @@ function labelHtml(items) {
         <span>${item.description}</span>
       </div>
     </div>
+  `;
+}
+
+function labelHtml(items, skippedSlots = state.skippedLabelSlots) {
+  const queue = items.filter(Boolean);
+  if (!skippedSlots.size) return queue.map(labelMarkup).join('');
+  const sheet = [];
+  let itemIndex = 0;
+  for (let slot = 0; slot < 30 && itemIndex < queue.length; slot += 1) {
+    if (skippedSlots.has(slot)) {
+      sheet.push(labelMarkup(null));
+    } else {
+      sheet.push(labelMarkup(queue[itemIndex]));
+      itemIndex += 1;
+    }
+  }
+  return sheet.concat(queue.slice(itemIndex).map(labelMarkup)).join('');
+}
+
+function renderLabelSlotGrid() {
+  const grid = $('#labelSlotGrid');
+  if (!grid) return;
+  grid.innerHTML = Array.from({ length: 30 }, (_, index) => `
+    <button class="${state.skippedLabelSlots.has(index) ? 'skipped' : ''}" data-slot="${index}" type="button">
+      ${index + 1}
+    </button>
   `).join('');
 }
 
@@ -187,6 +215,7 @@ async function renderLabels() {
   if (labelCategory.value) params.set('category', labelCategory.value);
   state.labelItems = await api(`/api/labels?${params.toString()}`);
   labelSheet.innerHTML = labelHtml(state.labelItems);
+  renderLabelSlotGrid();
 }
 
 async function printAllLabels() {
@@ -300,12 +329,13 @@ async function loadReview() {
 function reviewCard(item, missing = false) {
   const expected = item.expected_count ?? item.balance ?? 1;
   const actual = item.actual_count ?? (missing ? 0 : 1);
+  const title = item.tag_number ? `${item.tag_number} - ${item.description || 'No description'}` : (item.description || 'No description');
   return `
     <div class="review-card ${missing ? 'missing' : ''}">
-      <strong>${item.tag_number} - ${item.description || 'No description'}</strong>
+      <strong>${title}</strong>
       <div>${item.category} | ${item.item_number}</div>
       <div>Actual Count: ${actual} / Balance: ${expected}</div>
-      ${missing ? `
+      ${missing && item.source !== 'expected' ? `
         <select id="override-status-${item.id}">
           <option value="missing">Confirmed missing</option>
           <option value="found">Found - tag damaged</option>
@@ -413,10 +443,22 @@ function bindUi() {
     const form = new FormData();
     form.append('file', $('#csvFile').files[0]);
     const result = await api('/api/items/import', { method: 'POST', body: form });
-    toast(`Imported ${result.imported} items${result.blankTagged ? `, ${result.blankTagged} blank tags` : ''}${result.skipped ? `, skipped ${result.skipped}` : ''}.`);
+    toast(`Imported ${result.expectedImported || result.imported} expected rows${result.taggedImported ? `, ${result.taggedImported} tagged items` : ''}${result.skipped ? `, skipped ${result.skipped}` : ''}.`);
     await loadItems();
   });
   $('#retireAllItems').addEventListener('click', () => safeAsync(retireAllItems));
+  $('#labelSlotGrid').addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-slot]');
+    if (!button) return;
+    const slot = Number(button.dataset.slot);
+    if (state.skippedLabelSlots.has(slot)) state.skippedLabelSlots.delete(slot);
+    else state.skippedLabelSlots.add(slot);
+    safeAsync(renderLabels);
+  });
+  $('#clearLabelSlots').addEventListener('click', () => {
+    state.skippedLabelSlots.clear();
+    safeAsync(renderLabels);
+  });
   $('#startSession').addEventListener('click', () => safeAsync(startSession));
   $('#pauseSession').addEventListener('click', () => safeAsync(() => setSessionStatus('paused')));
   $('#resumeSession').addEventListener('click', () => safeAsync(() => setSessionStatus('active')));

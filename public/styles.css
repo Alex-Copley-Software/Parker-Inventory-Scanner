@@ -463,6 +463,28 @@ td.actions {
   min-width: 220px;
 }
 
+.label-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 44px);
+  grid-auto-rows: 34px;
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+
+.label-slot-grid button {
+  min-height: 34px;
+  padding: 0;
+  background: white;
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+.label-slot-grid button.skipped {
+  background: var(--red);
+  border-color: var(--red);
+  color: white;
+}
+
 .single-print-sheet {
   display: none;
 }

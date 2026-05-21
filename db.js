@@ -28,6 +28,17 @@ CREATE TABLE IF NOT EXISTS items (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS expected_inventory (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  category_id INTEGER NOT NULL REFERENCES categories(id),
+  item_number TEXT NOT NULL,
+  description TEXT NOT NULL,
+  balance INTEGER NOT NULL DEFAULT 1 CHECK(balance >= 0),
+  retired_at TEXT,
+  imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS count_sessions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   month INTEGER NOT NULL,
@@ -67,6 +78,7 @@ CREATE TABLE IF NOT EXISTS export_archives (
 );
 
 CREATE INDEX IF NOT EXISTS idx_items_tag_number ON items(tag_number);
+CREATE INDEX IF NOT EXISTS idx_expected_inventory_active ON expected_inventory(retired_at, category_id, item_number, description);
 CREATE INDEX IF NOT EXISTS idx_scan_events_session_id ON scan_events(session_id);
 CREATE INDEX IF NOT EXISTS idx_scan_events_tag_number ON scan_events(tag_number);
 CREATE INDEX IF NOT EXISTS idx_overrides_session_id ON discrepancy_overrides(session_id);

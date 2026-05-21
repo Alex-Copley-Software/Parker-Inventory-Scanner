@@ -82,15 +82,6 @@ function nextTagNumber() {
   return `W-${String(max + 1).padStart(3, '0')}`;
 }
 
-function nextBlankTagNumber() {
-  const found = rows("SELECT tag_number FROM items WHERE tag_number LIKE 'BLANK-%'");
-  const max = found.reduce((highest, item) => {
-    const match = item.tag_number.match(/^BLANK-(\d+)$/);
-    return match ? Math.max(highest, Number(match[1])) : highest;
-  }, 0);
-  return `BLANK-${String(max + 1).padStart(3, '0')}`;
-}
-
 function prefixFromName(name) {
   const base = name
     .replace(/&/g, ' ')
@@ -114,7 +105,7 @@ function prefixFromName(name) {
 function parseCsv(text) {
   const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(Boolean);
   if (!lines.length) return [];
-  return lines.slice(1).map((line) => {
+  return lines.map((line) => {
     const cells = [];
     let current = '';
     let quoted = false;
@@ -154,6 +145,15 @@ function csvValue(record, headerIndex, aliases, fallbackIndex) {
   return String(record[fallbackIndex] || '').trim();
 }
 
+function hasHeader(headerIndex, aliases) {
+  return aliases.some((alias) => headerIndex.has(alias));
+}
+
+function numericBalance(value) {
+  const parsed = Number.parseInt(String(value || '').trim(), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
 function inventoryImportRows(records) {
   if (!records.length) return [];
   const headers = records[0].map(normalizeHeader);
@@ -163,14 +163,41 @@ function inventoryImportRows(records) {
   const dataRows = hasRecognizedHeaders ? records.slice(1) : records;
 
   return dataRows.flatMap((record) => {
-    const tagCell = csvValue(record, headerIndex, ['tag count', 'tag number', 'tag'], 0);
+    const tagAliases = ['tag count', 'tag number', 'tag'];
+    const tagCell = hasRecognizedHeaders && !hasHeader(headerIndex, tagAliases) ? '' : csvValue(record, headerIndex, tagAliases, 0);
     const category = csvValue(record, headerIndex, ['category name', 'category'], 1);
     const itemNumber = csvValue(record, headerIndex, ['item number', 'item'], 2);
     const description = csvValue(record, headerIndex, ['description', 'desc'], 3);
+    const balance = numericBalance(csvValue(record, headerIndex, ['balance', 'expected balance', 'count'], 4));
     const tags = tagCell.split(',').map((tag) => tag.trim()).filter(Boolean);
-    if (!tags.length) return [{ tag: '', category, itemNumber, description }];
-    return tags.map((tag) => ({ tag, category, itemNumber, description }));
+    if (!tags.length) return [{ tag: '', category, itemNumber, description, balance, expectedOnly: true }];
+    return tags.map((tag) => ({ tag, category, itemNumber, description, balance: 1, expectedOnly: false }));
   });
+}
+
+function activeExpectedInventory() {
+  return rows(`
+    SELECT e.id, c.name AS category, e.item_number, e.description, e.balance
+    FROM expected_inventory e
+    JOIN categories c ON c.id = e.category_id
+    WHERE e.retired_at IS NULL
+    ORDER BY c.name, e.item_number, e.description
+  `);
+}
+
+function actualCountGroups(sessionId) {
+  return rows(`
+    SELECT c.name AS category, i.item_number, i.description, COUNT(*) AS actual_count
+    FROM scan_events s
+    JOIN items i ON i.id = s.item_id
+    JOIN categories c ON c.id = i.category_id
+    WHERE s.session_id = ?
+    GROUP BY c.name, i.item_number, i.description
+  `, [sessionId]);
+}
+
+function itemGroupKey(item) {
+  return [item.category, item.item_number || '', item.description || ''].join('\u001F');
 }
 
 app.get('/api/categories', (req, res) => {
@@ -260,7 +287,7 @@ app.delete('/api/items/:id', (req, res) => {
 
 app.post('/api/items/retire-all', (req, res) => {
   const info = db.prepare(`
-    UPDATE items
+    UPDATE expected_inventory
     SET retired_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
     WHERE retired_at IS NULL
   `).run();
@@ -291,9 +318,14 @@ app.post('/api/items/import', upload.single('file'), (req, res) => {
       retired_at = NULL,
       updated_at = CURRENT_TIMESTAMP
   `);
+  const insertExpected = db.prepare(`
+    INSERT INTO expected_inventory (category_id, item_number, description, balance)
+    VALUES (?, ?, ?, ?)
+  `);
   let imported = 0;
   let skipped = 0;
-  let blankTagged = 0;
+  let expectedImported = 0;
+  let taggedImported = 0;
   const transaction = db.transaction((records) => {
     for (const item of inventoryImportRows(records)) {
       const categoryId = ensureCategory(item.category);
@@ -301,15 +333,19 @@ app.post('/api/items/import', upload.single('file'), (req, res) => {
         skipped += 1;
         continue;
       }
-      const tag = item.tag || nextBlankTagNumber();
-      if (!item.tag) blankTagged += 1;
-      insert.run(tag, categoryId, item.itemNumber, item.description, 1);
+      if (item.expectedOnly) {
+        insertExpected.run(categoryId, item.itemNumber, item.description, item.balance);
+        expectedImported += 1;
+      } else {
+        insert.run(item.tag, categoryId, item.itemNumber, item.description, 1);
+        taggedImported += 1;
+      }
       imported += 1;
     }
   });
   transaction(parseCsv(req.file.buffer.toString('utf8')));
   broadcast('items:changed', {});
-  res.json({ imported, skipped, blankTagged });
+  res.json({ imported, skipped, expectedImported, taggedImported });
 });
 
 app.get('/api/qr/:tag', async (req, res) => {
@@ -417,19 +453,20 @@ app.get('/api/sessions/:id/scans', (req, res) => {
 
 app.get('/api/sessions/:id/review', (req, res) => {
   const sessionId = Number(req.params.id);
-  const scanExistsSql = 'EXISTS (SELECT 1 FROM scan_events s WHERE s.item_id = i.id AND s.session_id = ?)';
-  const reviewSelect = (condition) => `
-    SELECT i.id, i.tag_number, c.name AS category, c.prefix, i.item_number,
-           i.description, i.balance, i.retired_at, i.created_at, i.updated_at,
-           1 AS expected_count,
-           CASE WHEN ${scanExistsSql} THEN 1 ELSE 0 END AS actual_count
-    FROM items i
-    JOIN categories c ON c.id = i.category_id
-    WHERE i.retired_at IS NULL AND ${condition}
-    ORDER BY c.name, i.tag_number
-  `;
-  const scanned = rows(reviewSelect(scanExistsSql), [sessionId, sessionId]);
-  const notScanned = rows(reviewSelect(`NOT ${scanExistsSql}`), [sessionId, sessionId]);
+  const actualMap = new Map(actualCountGroups(sessionId).map((item) => [itemGroupKey(item), item.actual_count]));
+  const expected = activeExpectedInventory().map((item) => {
+    const actual_count = actualMap.get(itemGroupKey(item)) || 0;
+    return {
+      ...item,
+      tag_number: '',
+      source: 'expected',
+      expected_count: item.balance,
+      actual_count,
+      missing: Math.max(item.balance - actual_count, 0)
+    };
+  });
+  const scanned = expected.filter((item) => item.actual_count > 0);
+  const notScanned = expected.filter((item) => item.missing > 0);
   const overrides = rows(`
     SELECT o.*, i.tag_number, i.item_number, i.description, i.balance, c.name AS category
     FROM discrepancy_overrides o
@@ -460,7 +497,8 @@ app.get('/api/sessions/:id/export', async (req, res) => {
   const session = row('SELECT * FROM count_sessions WHERE id = ?', [Number(req.params.id)]);
   if (!session) return res.status(404).json({ error: 'Session not found.' });
   const monthName = new Date(session.year, session.month - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
-  const items = rows(itemSelect('WHERE i.retired_at IS NULL'));
+  const expectedItems = activeExpectedInventory();
+  const actualMap = new Map(actualCountGroups(session.id).map((item) => [itemGroupKey(item), item.actual_count]));
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet(monthName);
   sheet.views = [{ state: 'frozen', ySplit: 1 }];
@@ -469,7 +507,7 @@ app.get('/api/sessions/:id/export', async (req, res) => {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F766E' } };
     cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
   });
-  const groupedItems = Array.from(items.reduce((groups, item) => {
+  const groupedItems = Array.from(expectedItems.reduce((groups, item) => {
     const key = [item.category, item.item_number, item.description].join('\u001F');
     if (!groups.has(key)) {
       groups.set(key, {
@@ -477,29 +515,20 @@ app.get('/api/sessions/:id/export', async (req, res) => {
         item_number: item.item_number,
         description: item.description,
         tags: [],
-        actualTags: []
+        balance: 0
       });
     }
-    groups.get(key).tags.push(item.tag_number);
+    groups.get(key).balance += Number(item.balance || 0);
     return groups;
   }, new Map()).values()).map((item) => ({
     ...item,
-    tags: item.tags.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
-    actualTags: item.actualTags.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
-    balance: item.tags.length,
-    actual_count: item.actualTags.length,
-    missing: item.tags.length - item.actualTags.length
+    actual_count: actualMap.get(itemGroupKey(item)) || 0,
+    missing: Math.max(item.balance - (actualMap.get(itemGroupKey(item)) || 0), 0)
   }));
-  const scannedTags = new Set(rows('SELECT tag_number FROM scan_events WHERE session_id = ?', [session.id]).map((scan) => scan.tag_number));
-  groupedItems.forEach((item) => {
-    item.actualTags = item.tags.filter((tag) => scannedTags.has(tag));
-    item.actual_count = item.actualTags.length;
-    item.missing = item.balance - item.actual_count;
-  });
   groupedItems
     .sort((a, b) => a.category.localeCompare(b.category) || a.item_number.localeCompare(b.item_number, undefined, { numeric: true }))
     .forEach((item) => {
-      sheet.addRow([item.tags.join(', '), item.category, item.item_number, item.description, item.balance, item.actual_count, item.missing]);
+      sheet.addRow(['', item.category, item.item_number, item.description, item.balance, item.actual_count, item.missing]);
     });
   sheet.columns.forEach((column) => {
     let max = 12;
