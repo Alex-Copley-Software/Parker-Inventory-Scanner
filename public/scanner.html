@@ -44,8 +44,18 @@
     </section>
 
     <section class="panel scanner-history-panel">
-      <h2>Scan History</h2>
-      <div id="history" class="history"></div>
+      <div class="scanner-tabs">
+        <button id="showLogTab" class="active" type="button">Log</button>
+        <button id="showInventoryTab" type="button">Inventory</button>
+      </div>
+      <div id="scannerLogPanel">
+        <h2>Scan History</h2>
+        <div id="history" class="history"></div>
+      </div>
+      <div id="scannerInventoryPanel" class="hidden">
+        <h2>Inventory</h2>
+        <div id="mobileInventory" class="mobile-inventory"></div>
+      </div>
     </section>
   </main>
   <div id="scanConfirm" class="scan-confirm hidden" role="dialog" aria-modal="true" aria-labelledby="scanConfirmTitle">

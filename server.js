@@ -646,9 +646,13 @@ app.patch('/api/sessions/:id', (req, res) => {
     db.prepare(`
       UPDATE count_sessions
       SET status = ?,
-          completed_at = CASE WHEN ? = 'complete' THEN CURRENT_TIMESTAMP ELSE completed_at END
+          completed_at = CASE
+            WHEN ? = 'complete' THEN CURRENT_TIMESTAMP
+            WHEN ? IN ('active', 'paused') THEN NULL
+            ELSE completed_at
+          END
       WHERE id = ?
-    `).run(status, status, Number(req.params.id));
+    `).run(status, status, status, Number(req.params.id));
     const session = row('SELECT * FROM count_sessions WHERE id = ?', [Number(req.params.id)]);
     if (!session) return res.status(404).json({ error: 'Session not found.' });
     broadcast('sessions:changed', session);

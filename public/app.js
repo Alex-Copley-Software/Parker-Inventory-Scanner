@@ -481,6 +481,17 @@ async function setSessionStatus(status) {
   await loadSession();
 }
 
+async function reopenReviewSession() {
+  const session = await reviewableSession();
+  if (!session) return toast('No completed session found to reopen.', 'warn');
+  const updatedSession = await api(`/api/sessions/${session.id}`, { method: 'PATCH', body: { status: 'active' } });
+  state.activeSession = updatedSession;
+  state.reviewSession = updatedSession;
+  await loadSession();
+  showTab('sessions');
+  toast('Session reopened. Continue scanning missed items.');
+}
+
 async function reviewableSession() {
   if (state.reviewSession) return state.reviewSession;
   if (state.activeSession) return state.activeSession;
@@ -699,6 +710,7 @@ function bindUi() {
   $('#resumeSession').addEventListener('click', () => safeAsync(() => setSessionStatus('active')));
   $('#completeSession').addEventListener('click', () => safeAsync(() => setSessionStatus('complete')));
   $('#refreshReview').addEventListener('click', () => safeAsync(loadReview));
+  $('#reopenSession').addEventListener('click', () => safeAsync(reopenReviewSession));
   $('#exportButton').addEventListener('click', () => {
     const session = state.reviewSession || state.activeSession;
     if (session) location.href = apiUrl(`/api/sessions/${session.id}/export`);

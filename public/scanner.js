@@ -59,6 +59,7 @@ function showScanSuccess(tag, result) {
     const scan = result.scan;
     setResult(`${scan.description} synced to the active count.`, '');
     addHistory(tag, `${scan.category} synced`);
+    loadInventoryReview().catch(() => {});
   }
 }
 
@@ -100,6 +101,51 @@ function addHistory(tag, message) {
   row.className = 'feed-item';
   row.innerHTML = `<strong>${tag}</strong><span>${message}</span>`;
   $('#history').prepend(row);
+}
+
+function inventoryKey(item) {
+  return [item.category || '', item.item_number || '', item.description || ''].join('\u001F');
+}
+
+function setScannerPanel(panel) {
+  const showingInventory = panel === 'inventory';
+  $('#scannerLogPanel').classList.toggle('hidden', showingInventory);
+  $('#scannerInventoryPanel').classList.toggle('hidden', !showingInventory);
+  $('#showLogTab').classList.toggle('active', !showingInventory);
+  $('#showInventoryTab').classList.toggle('active', showingInventory);
+  if (showingInventory) loadInventoryReview().catch((error) => setResult(error.message, 'bad'));
+}
+
+async function loadInventoryReview() {
+  if (!activeSession) await loadSession();
+  if (!activeSession) {
+    $('#mobileInventory').innerHTML = '<p>No active count session.</p>';
+    return;
+  }
+  const review = await api(`/api/sessions/${activeSession.id}/review`);
+  const inventoryRows = new Map();
+  [...review.scanned, ...review.notScanned].forEach((item) => {
+    const key = inventoryKey(item);
+    const existing = inventoryRows.get(key);
+    if (!existing || Number(item.actual_count || 0) > Number(existing.actual_count || 0)) inventoryRows.set(key, item);
+  });
+  const sorted = Array.from(inventoryRows.values()).sort((a, b) => {
+    const missingDelta = Number(b.missing || 0) - Number(a.missing || 0);
+    if (missingDelta) return missingDelta;
+    return String(a.description || '').localeCompare(String(b.description || ''));
+  });
+  $('#mobileInventory').innerHTML = sorted.map((item) => {
+    const missing = Number(item.missing || 0);
+    const balance = item.balance ?? item.expected_count ?? 0;
+    return `
+      <div class="mobile-inventory-item ${missing > 0 ? 'missing' : ''}">
+        <strong>${item.description || 'No description'}</strong>
+        <span>${item.category || ''} | ${item.item_number || ''}</span>
+        <span>Actual ${item.actual_count || 0} / Balance ${balance}</span>
+        <em>${missing > 0 ? `${missing} missing` : 'Complete'}</em>
+      </div>
+    `;
+  }).join('') || '<p>No imported inventory found.</p>';
 }
 
 async function lookupTag(tag) {
@@ -169,6 +215,7 @@ async function flushPending() {
     });
     savePending(retryTags);
     addHistory('Queued scans', `${synced} synced, ${result.results.length - synced} rejected`);
+    loadInventoryReview().catch(() => {});
   } catch (error) {
     if (shouldQueueScanError(error)) setResult('Backend still unreachable. Queued scans will retry automatically.', 'warn');
     else setResult(error.message, 'bad');
@@ -238,6 +285,8 @@ async function init() {
   await flushPending();
   $('#startCamera').addEventListener('click', () => startCamera().catch((error) => setResult(error.message, 'bad')));
   $('#stopCamera').addEventListener('click', () => stopCamera().catch(() => {}));
+  $('#showLogTab').addEventListener('click', () => setScannerPanel('log'));
+  $('#showInventoryTab').addEventListener('click', () => setScannerPanel('inventory'));
   $('#confirmScan').addEventListener('click', async () => {
     if (!pendingScan) return;
     const tag = pendingScan.tag_number;
@@ -292,7 +341,10 @@ async function init() {
   });
   window.addEventListener('online', updateOnlineStatus);
   window.addEventListener('offline', updateOnlineStatus);
-  setInterval(() => flushPending().catch(() => {}), 5000);
+  setInterval(() => {
+    flushPending().catch(() => {});
+    if (!$('#scannerInventoryPanel').classList.contains('hidden')) loadInventoryReview().catch(() => {});
+  }, 5000);
 }
 
 init().catch((error) => setResult(error.message, 'bad'));

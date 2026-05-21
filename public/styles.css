@@ -506,6 +506,66 @@ td.actions {
   margin-bottom: 8px;
 }
 
+.scanner-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.scanner-tabs button {
+  min-height: 40px;
+  background: white;
+  color: var(--teal-dark);
+}
+
+.scanner-tabs button.active {
+  background: var(--teal);
+  color: white;
+}
+
+.mobile-inventory {
+  display: grid;
+  gap: 8px;
+  max-height: calc(28vh - 92px);
+  overflow: auto;
+}
+
+.mobile-inventory-item {
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 9px;
+  background: #fbfdfc;
+}
+
+.mobile-inventory-item.missing {
+  border-color: #f3b5af;
+  background: #fff8f7;
+}
+
+.mobile-inventory-item strong,
+.mobile-inventory-item span {
+  overflow-wrap: anywhere;
+}
+
+.mobile-inventory-item em {
+  width: fit-content;
+  margin-top: 2px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #e7f5ef;
+  color: var(--green);
+  font-style: normal;
+  font-size: 13px;
+}
+
+.mobile-inventory-item.missing em {
+  background: #fee4e2;
+  color: var(--red);
+}
+
 #reader {
   width: 100%;
   height: clamp(280px, 48vh, 520px);
@@ -828,6 +888,10 @@ td.actions {
 
   .scanner-body .history {
     max-height: calc(18vh - 36px);
+  }
+
+  .mobile-inventory {
+    max-height: calc(18vh - 76px);
   }
 
   .scanner-history-panel h2 {
