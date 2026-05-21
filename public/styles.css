@@ -829,7 +829,7 @@ td.actions {
     min-height: 100dvh;
     padding: 6px;
     gap: 6px;
-    grid-template-rows: min-content auto minmax(220px, 34dvh);
+    display: block;
   }
 
   .scanner-shell .topbar {
@@ -860,6 +860,7 @@ td.actions {
   .scanner-camera-panel {
     padding: 6px;
     gap: 6px;
+    margin-bottom: 6px;
   }
 
   #reader {
@@ -907,16 +908,19 @@ td.actions {
 
   .scanner-history-panel {
     max-height: none;
+    overflow: visible;
     padding: 8px;
     min-height: 220px;
   }
 
   .scanner-body .history {
-    max-height: calc(34dvh - 86px);
+    max-height: none;
+    overflow: visible;
   }
 
   .mobile-inventory {
-    max-height: calc(34dvh - 92px);
+    max-height: none;
+    overflow: visible;
   }
 
   .scanner-history-panel h2 {
