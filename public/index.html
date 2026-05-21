@@ -17,7 +17,10 @@
     </header>
 
     <nav class="tabs no-print">
-      <button class="active" data-tab="registry">Registry</button>
+      <button class="active" data-tab="home">Home</button>
+      <button data-tab="qrSetup">QR Setup</button>
+      <button data-tab="expectedSetup">Expected Setup</button>
+      <button data-tab="registry">Registry</button>
       <button data-tab="sessions">Count Session</button>
       <button data-tab="review">Review & Export</button>
       <button data-tab="labels">QR Labels</button>
@@ -25,7 +28,100 @@
       <a id="scannerNav" class="button-link" href="/scanner.html" target="_blank" rel="noopener">Scanner</a>
     </nav>
 
-    <section id="registry" class="tab-page">
+    <section id="home" class="tab-page">
+      <div class="welcome-panel">
+        <button id="enterFlow" class="app-start-card" type="button">
+          <span>Parker Inventory Scanner</span>
+          <small>Start setup</small>
+        </button>
+        <div id="flowChoices" class="flow-choices hidden">
+          <button id="chooseQrSetup" class="flow-card" type="button">
+            <strong>Import/Create new QR codes</strong>
+            <span>Use this when you need to bulk import QR tags, manually add items, print labels, or prepare new stickers.</span>
+          </button>
+          <button id="chooseExpectedSetup" class="flow-card" type="button">
+            <strong>Import expected inventory</strong>
+            <span>Use this when your QR codes are already ready and you only need to load the comparison sheet before counting.</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section id="qrSetup" class="tab-page hidden">
+      <div class="setup-page">
+        <div class="panel setup-main">
+          <span class="step-pill">Step 1</span>
+          <h2>Create and Print QR Codes</h2>
+          <p class="helper-text">Import a QR tag CSV or manually create items. These QR tags remain scan-readable even if retired from the active print list later.</p>
+          <div class="setup-grid">
+            <section class="setup-box">
+              <h3>Bulk QR Tag Import</h3>
+              <form id="setupTagImportForm">
+                <input id="setupTagCsvFile" type="file" accept=".csv" required>
+                <p class="helper-text">Columns: Tag Count, Category Name, Item Number, Description.</p>
+                <button type="submit">Import QR Tags</button>
+              </form>
+              <button id="setupPrintAllQr" class="secondary full-width-button" type="button">Print All QR Labels</button>
+              <button id="setupRetireAllQrTags" class="danger full-width-button" type="button">Retire All QR Tags</button>
+            </section>
+            <section class="setup-box">
+              <h3>Manual QR Item</h3>
+              <form id="setupItemForm">
+                <label>Category<select id="setupCategory" required></select></label>
+                <label>Tag #<input id="setupTagNumber" required></label>
+                <label>Item Number<input id="setupItemNumber"></label>
+                <label>Description<textarea id="setupDescription" rows="3"></textarea></label>
+                <button type="submit">Save QR Item</button>
+              </form>
+            </section>
+          </div>
+          <div class="setup-footer">
+            <button id="finishQrSetup" type="button">Finish QR Setup</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="expectedSetup" class="tab-page hidden">
+      <div class="setup-page">
+        <div class="panel setup-main">
+          <span class="step-pill">Step 2</span>
+          <h2>Import Expected Inventory</h2>
+          <p class="helper-text">Load the comparison list. This does not create QR codes; it only sets the expected balance for each item type.</p>
+          <div class="setup-grid">
+            <section class="setup-box">
+              <h3>Expected Inventory CSV</h3>
+              <form id="setupImportForm">
+                <input id="setupCsvFile" type="file" accept=".csv" required>
+                <p class="helper-text">Columns: Category Name, Item Number, Description, Balance.</p>
+                <button type="submit">Import Expected Inventory</button>
+              </form>
+              <button id="setupClearExpected" class="danger full-width-button" type="button">Clear Expected Inventory</button>
+            </section>
+            <section class="setup-box">
+              <h3>Current Expected Inventory</h3>
+              <div class="setup-list-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Category</th>
+                      <th>Item Number</th>
+                      <th>Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody id="setupExpectedBody"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+          <div class="setup-footer">
+            <button id="finishExpectedSetup" type="button">Finish Expected Inventory</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="registry" class="tab-page hidden">
       <div class="layout">
         <div class="panel">
           <h2>Item Registry</h2>

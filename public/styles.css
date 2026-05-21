@@ -126,6 +126,133 @@ textarea {
   border-color: var(--teal);
 }
 
+.welcome-panel {
+  min-height: calc(100vh - 160px);
+  display: grid;
+  align-content: center;
+  gap: 22px;
+}
+
+.app-start-card {
+  width: min(100%, 760px);
+  min-height: 220px;
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  border-radius: 8px;
+  border-color: #0d9488;
+  background: var(--teal);
+  box-shadow: 0 22px 70px rgba(17, 94, 89, 0.24);
+}
+
+.app-start-card span {
+  font-size: clamp(32px, 6vw, 58px);
+  font-weight: 800;
+}
+
+.app-start-card small {
+  font-size: 18px;
+  opacity: 0.9;
+}
+
+.app-start-card.compact {
+  min-height: 112px;
+}
+
+.flow-choices {
+  width: min(100%, 980px);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.flow-card {
+  min-height: 190px;
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: left;
+  background: white;
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+.flow-card strong {
+  display: block;
+  font-size: 26px;
+}
+
+.flow-card span {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.setup-page {
+  display: grid;
+  gap: 18px;
+}
+
+.setup-main {
+  padding: 22px;
+}
+
+.step-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  margin-bottom: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #e7f5ef;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.setup-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.setup-box {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  background: #fbfdfc;
+}
+
+.setup-box form {
+  display: grid;
+  gap: 10px;
+}
+
+.setup-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.setup-footer button {
+  min-width: 220px;
+}
+
+.full-width-button {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.setup-list-wrap {
+  max-height: 360px;
+  overflow: auto;
+}
+
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
@@ -613,7 +740,9 @@ td.actions {
 
 @media (max-width: 980px) {
   .layout,
-  .review-grid {
+  .review-grid,
+  .flow-choices,
+  .setup-grid {
     grid-template-columns: 1fr;
   }
 
