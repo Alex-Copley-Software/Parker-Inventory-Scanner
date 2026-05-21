@@ -658,7 +658,6 @@ function bindUi() {
   $('#filterCategory').addEventListener('change', () => safeAsync(loadItems));
   $('#labelCategory').addEventListener('change', () => safeAsync(renderLabels));
   $('#refreshLabels').addEventListener('click', () => safeAsync(renderLabels));
-  $('#printAllLabelsNav').addEventListener('click', () => safeAsync(printAllLabels));
   $('#printAllLabelsTop').addEventListener('click', () => safeAsync(printAllLabels));
   $('#printAllLabelsBottom').addEventListener('click', () => safeAsync(printAllLabels));
   window.addEventListener('afterprint', cleanupSinglePrint);
