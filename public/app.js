@@ -8,7 +8,9 @@ const state = {
   reviewSession: null,
   scans: [],
   pendingItems: [],
-  skippedLabelSlots: new Set()
+  skippedLabelSlots: new Set(),
+  labelColumnShift: Number(localStorage.getItem('parker-label-column-shift') || 2),
+  labelRowShift: Number(localStorage.getItem('parker-label-row-shift') || 0.3)
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -331,10 +333,11 @@ window.printOne = async (tag) => {
   setTimeout(() => window.print(), 150);
 };
 
-function labelMarkup(item) {
-  if (!item) return '<div class="label"></div>';
+function labelMarkup(item, slot = 0) {
+  const placement = `style="--grid-column:${slot % 3};--grid-row:${Math.floor(slot / 3)}"`;
+  if (!item) return `<div class="label" ${placement}></div>`;
   return `
-    <div class="label">
+    <div class="label" ${placement}>
       <img src="${apiUrl(`/api/qr/${encodeURIComponent(item.tag_number)}`)}" alt="">
       <div>
         <strong>${item.tag_number}</strong>
@@ -347,18 +350,23 @@ function labelMarkup(item) {
 
 function labelHtml(items, skippedSlots = state.skippedLabelSlots) {
   const queue = items.filter(Boolean);
-  if (!skippedSlots.size) return queue.map(labelMarkup).join('');
+  if (!skippedSlots.size) return queue.map((item, index) => labelMarkup(item, index)).join('');
   const sheet = [];
   let itemIndex = 0;
   for (let slot = 0; slot < 30 && itemIndex < queue.length; slot += 1) {
     if (skippedSlots.has(slot)) {
-      sheet.push(labelMarkup(null));
+      sheet.push(labelMarkup(null, slot));
     } else {
-      sheet.push(labelMarkup(queue[itemIndex]));
+      sheet.push(labelMarkup(queue[itemIndex], slot));
       itemIndex += 1;
     }
   }
-  return sheet.concat(queue.slice(itemIndex).map(labelMarkup)).join('');
+  return sheet.concat(queue.slice(itemIndex).map((item, index) => labelMarkup(item, sheet.length + index))).join('');
+}
+
+function applyLabelAlignment() {
+  document.documentElement.style.setProperty('--label-column-shift', `${state.labelColumnShift}mm`);
+  document.documentElement.style.setProperty('--label-row-shift', `${state.labelRowShift}mm`);
 }
 
 function renderLabelSlotGrid() {
@@ -586,6 +594,9 @@ function connectSocket() {
 function bindUi() {
   $('#apiBaseUrl').value = configuredApiBase();
   $('#sessionMonth').value = new Date().toISOString().slice(0, 7);
+  $('#labelColumnShift').value = state.labelColumnShift;
+  $('#labelRowShift').value = state.labelRowShift;
+  applyLabelAlignment();
   $$('.tabs button').forEach((button) => button.addEventListener('click', () => showTab(button.dataset.tab)));
   $('#enterFlow').addEventListener('click', () => {
     $('#flowChoices').classList.remove('hidden');
@@ -660,6 +671,14 @@ function bindUi() {
   $('#refreshLabels').addEventListener('click', () => safeAsync(renderLabels));
   $('#printAllLabelsTop').addEventListener('click', () => safeAsync(printAllLabels));
   $('#printAllLabelsBottom').addEventListener('click', () => safeAsync(printAllLabels));
+  $('#applyLabelAlignment').addEventListener('click', () => {
+    state.labelColumnShift = Number($('#labelColumnShift').value || 0);
+    state.labelRowShift = Number($('#labelRowShift').value || 0);
+    localStorage.setItem('parker-label-column-shift', state.labelColumnShift);
+    localStorage.setItem('parker-label-row-shift', state.labelRowShift);
+    applyLabelAlignment();
+    toast('Print alignment applied.');
+  });
   window.addEventListener('afterprint', cleanupSinglePrint);
   renderLabelSlotGrid();
   $('#importForm').addEventListener('submit', async (event) => {
