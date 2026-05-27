@@ -334,7 +334,8 @@ window.printOne = async (tag) => {
 };
 
 function labelMarkup(item, slot = 0) {
-  const placement = `style="--grid-column:${slot % 3};--grid-row:${Math.floor(slot / 3)}"`;
+  const pageSlot = slot % 30;
+  const placement = `style="--grid-column:${pageSlot % 3};--grid-row:${Math.floor(pageSlot / 3)}"`;
   if (!item) return `<div class="label" ${placement}></div>`;
   return `
     <div class="label" ${placement}>
